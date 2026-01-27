@@ -537,15 +537,126 @@ st.set_page_config(page_title="AI Bug Intelligence Platform", layout="wide")
 # [Your beautiful CSS remains exactly the same]
 st.markdown("""
 <style>
-    /* ... your full CSS ... */
-</style>
-""", unsafe_allow_html=True)
+    /* ============================================= */
+    /* General layout & typography                   */
+    /* ============================================= */
+    .header-container h1 {
+        color: #1e88e5;
+        text-align: center;
+        font-size: 2.8rem;
+        margin-bottom: 0.3rem;
+    }
+    .tagline {
+        text-align: center;
+        color: #546e7a;
+        font-size: 1.25rem;
+        margin-top: 0;
+    }
 
-st.markdown("""
-<div class="header-container">
-    <h1>🐞 AI Bug Intelligence Platform</h1>
-    <p class="tagline">Predict • Prevent • Perfect — Now with Hybrid Real + AI-Predicted Risks</p>
-</div>
+    /* ============================================= */
+    /* PRIMARY ACCENT - light blue family            */
+    /* Used for buttons + selected multiselect pills */
+    /* ============================================= */
+    /* Primary buttons */
+    button[kind="primary"],
+    button[data-testid="baseButton-primary"],
+    div.stButton > button[kind="primary"],
+    .stButton > button {
+        background-color: #a3d8ff !important;
+        border: 1px solid #81d4fa !important;
+        color: #0d47a1 !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        padding: 0.6rem 1.3rem !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    button[kind="primary"]:hover,
+    .stButton > button:hover {
+        background-color: #90caf9 !important;
+        border-color: #64b5f6 !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
+    }
+
+    button[kind="primary"]:active {
+        background-color: #64b5f6 !important;
+    }
+
+    /* Multiselect selected items (pills/tags/chips) */
+    .stMultiSelect [data-baseweb="tag"],
+    span[data-baseweb="tag"] {
+        background-color: #a3d8ff !important;
+        color: #0d47a1 !important;
+        border-radius: 12px !important;
+        border: 1px solid #81d4fa !important;
+        padding: 0.35rem 0.75rem !important;
+        font-weight: 500 !important;
+        margin: 0.2rem !important;
+    }
+
+    /* Hover on selected tag */
+    .stMultiSelect [data-baseweb="tag"]:hover {
+        background-color: #90caf9 !important;
+        border-color: #64b5f6 !important;
+    }
+
+    /* Close button (×) inside tag */
+    .stMultiSelect [data-baseweb="tag"] span[aria-label*="remove"] {
+        color: #0d47a1 !important;
+    }
+
+    /* Multiselect dropdown items hover (optional consistency) */
+    div[role="listbox"] li:hover {
+        background-color: #e3f2fd !important;
+    }
+
+    /* ============================================= */
+    /* Inputs / Text areas / Text inputs → white     */
+    /* ============================================= */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stNumberInput input,
+    input[type="text"],
+    input[type="password"],
+    textarea,
+    [data-testid="stMultiSelect"] input {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #b0d4ff !important;
+        border-radius: 6px !important;
+        padding: 0.55rem 0.8rem !important;
+    }
+
+    /* Focus state */
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    [data-testid="stMultiSelect"] input:focus {
+        border-color: #64b5f6 !important;
+        box-shadow: 0 0 0 3px rgba(163, 216, 255, 0.35) !important;
+    }
+
+    /* Placeholder */
+    ::placeholder {
+        color: #90a4ae !important;
+        opacity: 0.9 !important;
+    }
+
+    /* Labels */
+    label {
+        color: #263238 !important;
+        font-weight: 500 !important;
+    }
+
+    /* Card-like containers (optional improvement) */
+    .card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        margin-bottom: 1.5rem;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["📥 Fetch & Filter", "🧠 Train AI Models", "🔮 Predict New Risks"])
@@ -919,4 +1030,5 @@ with tab3:
 st.markdown("---")
 st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
+
             unsafe_allow_html=True)
