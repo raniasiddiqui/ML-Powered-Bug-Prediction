@@ -727,10 +727,17 @@ with tab2:
     training_scope = st.radio("**Training Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
 
     if training_scope == "Individual Project":
-        project_options = list(st.session_state.bug_data_individual.keys())
-        selected_proj = st.selectbox("**Select Project**", project_options)
-        df_to_use = st.session_state.bug_data_individual[selected_proj]
-        name = selected_proj.replace(" ", "_")
+    project_options = list(st.session_state.bug_data_individual.keys())
+    selected_proj = st.selectbox("**Select Project**", project_options)
+
+    df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
+
+    # ✅ Ensure Project column always exists
+    if "Project" not in df_to_use.columns:
+        df_to_use["Project"] = selected_proj
+
+    name = selected_proj.replace(" ", "_")
+
     else:
         df_to_use = st.session_state.bug_data_combined
         name = "Combined"
@@ -917,12 +924,19 @@ with tab2:
                         (summary_df[feature_col] == selected_feature) &
                         (summary_df["Severity"] == selected_severity)
                     )
-                    details_df = summary_df[mask][["WorkItemId", "Title", "State", "Priority", "CreatedDate", "Project"]].copy()
+                    required_cols = ["WorkItemId", "Title", "State", "Priority", "CreatedDate", "Project"]
+
+                    available_cols = [c for c in required_cols if c in summary_df.columns]
+
+                    details_df = summary_df.loc[mask, available_cols].copy()
+
 
                     if not details_df.empty:
-                        details_df["CreatedDate"] = pd.to_datetime(details_df["CreatedDate"], errors="coerce")
-                        details_df = details_df.sort_values("CreatedDate", ascending=False)
-                        details_df["CreatedDate"] = details_df["CreatedDate"].dt.strftime("%Y-%m-%d")
+                        if "CreatedDate" in details_df.columns:
+                            details_df["CreatedDate"] = pd.to_datetime(details_df["CreatedDate"], errors="coerce")
+                            details_df = details_df.sort_values("CreatedDate", ascending=False)
+                            details_df["CreatedDate"] = details_df["CreatedDate"].dt.strftime("%Y-%m-%d")
+
 
                         # Prepare display version (without Project/Link if not needed)
                         display_df = details_df[["WorkItemId", "Title", "State", "Priority", "CreatedDate"]].copy()
@@ -949,7 +963,11 @@ with tab2:
                     )
 
                     # Generate CSV data
-                    csv = st.session_state.bug_details_df[["WorkItemId", "Title", "State", "Priority", "CreatedDate"]].to_csv(index=False).encode()
+                    download_cols = [c for c in ["WorkItemId", "Title", "State", "Priority", "CreatedDate"]
+                                    if c in st.session_state.bug_details_df.columns]
+
+                    csv = st.session_state.bug_details_df[download_cols].to_csv(index=False).encode()
+
 
                     st.download_button(
                         label="Download These Bugs",
@@ -1032,3 +1050,4 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
