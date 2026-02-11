@@ -187,6 +187,9 @@ There should not be any overlap with existing titles.
 Make sure they are not redundant or trivial variations of existing bugs.
 The bugs should reflect potential future failures that could arise. 
 The bugs should be realistic and relevant to the modules mentioned.
+Dont mix the bugs from the projects selected. There should be no overlap between the bugs from different projects
+Cover most frequently occurred issues, most well-known potential issues that can occur 
+
 
 
 
@@ -495,6 +498,7 @@ ANALYSIS INSTRUCTIONS:
 - Dont repeat known bugs or trivial variations. They should not be redundant.
 - Think like a QA architect anticipating future failures.
 - They should be realistic and relevant to the feature mentioned. Should include various possible failure modes related to the feature.
+- They should be most frequently occured issues, most well-known potential issues that can occur related to the feature mentioned.
 
 STRICT RULES:
 - ❌ NEVER repeat, paraphrase, or slightly reword any bug from above lists
@@ -659,11 +663,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📥 Fetch & Filter", "🧠 Train AI Models", "🔮 Predict New Risks"])
+tab1, tab2, tab3 = st.tabs(["📥 Fetch & Filter", "🧠 Bugs Learning", "🔮 Predict Potential Bugs"])
 
 # TAB 1 - Unchanged
 with tab1:
-    st.markdown("<div class='card'><h2 style='color:#00E5FF; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
     
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -715,7 +719,7 @@ with tab1:
 
 # TAB 2 - Now saves hybrid data
 with tab2:
-    st.markdown("<div class='card'><h2 style='color:#00E5FF; margin-top:0'>Train Advanced AI Models</h2></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
 
     if "bug_data_combined" not in st.session_state:
         st.info("Please fetch and preprocess data in the first tab first.")
@@ -724,7 +728,7 @@ with tab2:
     # ========================
     # TRAINING CONTROLS
     # ========================
-    training_scope = st.radio("**Training Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
+    training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
 
     if training_scope == "Individual Project":
         
@@ -748,7 +752,7 @@ with tab2:
 
     st.markdown("### Configure AI-Predicted Bug Generation")
     bugs_per_cluster = st.slider(
-        "Number of Synthetic Bugs per Cluster",
+        "Number of Bugs per Cluster",
         min_value=2,
         max_value=15,
         value=4,
@@ -756,7 +760,7 @@ with tab2:
         help="Higher = richer predictive coverage (e.g., 15 × 8 clusters = 120 total synthetic bugs)"
     )
 
-    if st.button("Start Full AI Training", type="primary", key="start_training"):
+    if st.button("Start Bug Learning", type="primary", key="start_training"):
         with st.spinner("Training models and generating synthetic bugs..."):
             results = train_all_models(df_to_use, name, bugs_per_cluster=bugs_per_cluster)
 
@@ -996,7 +1000,7 @@ with tab2:
         st.info("Complete the training above to unlock bug analytics, synthetic bugs, and predictive insights.")
 # TAB 3 - Now uses hybrid data
 with tab3:
-    st.markdown("<div class='card'><h2 style='color:#00E5FF; margin-top:0'>🔮 Predict New Latent Bugs (Hybrid Mode)</h2></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
 
     if "hybrid_df" not in st.session_state:
         st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
@@ -1051,5 +1055,6 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
