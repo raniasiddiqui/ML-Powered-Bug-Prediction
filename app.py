@@ -727,16 +727,17 @@ with tab2:
     training_scope = st.radio("**Training Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
 
     if training_scope == "Individual Project":
-    project_options = list(st.session_state.bug_data_individual.keys())
-    selected_proj = st.selectbox("**Select Project**", project_options)
+        
+        project_options = list(st.session_state.bug_data_individual.keys())
+        selected_proj = st.selectbox("**Select Project**", project_options)
 
-    df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
+        df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
 
     # ✅ Ensure Project column always exists
-    if "Project" not in df_to_use.columns:
-        df_to_use["Project"] = selected_proj
+        if "Project" not in df_to_use.columns:
+            df_to_use["Project"] = selected_proj
 
-    name = selected_proj.replace(" ", "_")
+        name = selected_proj.replace(" ", "_")
 
     else:
         df_to_use = st.session_state.bug_data_combined
@@ -1050,4 +1051,5 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
