@@ -660,6 +660,65 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         margin-bottom: 1.5rem;
     }
+    /* ────────────────────────────────────────────────
+   FIX 1: Multiselect selected tags (project pills)
+   Keep blue background, make text BLACK
+──────────────────────────────────────────────── */
+.stMultiSelect [data-baseweb="tag"],
+span[data-baseweb="tag"] {
+    background-color: #a3d8ff !important;
+    color: #000000 !important;           /* ← changed from #0d47a1 to black */
+    border-radius: 12px !important;
+    border: 1px solid #81d4fa !important;
+    padding: 0.35rem 0.75rem !important;
+    font-weight: 500 !important;
+    margin: 0.2rem !important;
+}
+
+/* Hover state - still looks good with black text */
+.stMultiSelect [data-baseweb="tag"]:hover {
+    background-color: #90caf9 !important;
+    border-color: #64b5f6 !important;
+    color: #000000 !important;
+}
+
+/* Close (×) button inside tag - make it dark too */
+.stMultiSelect [data-baseweb="tag"] span[aria-label*="remove"] {
+    color: #000000 !important;
+}
+
+/* ────────────────────────────────────────────────
+   FIX 2: Make primary button TEXT black
+   (affects both "Fetch & Filter Bugs" and "Start Bug Learning")
+──────────────────────────────────────────────── */
+button[kind="primary"],
+button[data-testid="baseButton-primary"],
+div.stButton > button[kind="primary"],
+.stButton > button {
+    background-color: #a3d8ff !important;
+    border: 1px solid #81d4fa !important;
+    color: #000000 !important;           /* ← changed from #0d47a1 to black */
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    padding: 0.6rem 1.3rem !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Hover - keep black text */
+button[kind="primary"]:hover,
+.stButton > button:hover {
+    background-color: #90caf9 !important;
+    border-color: #64b5f6 !important;
+    color: #000000 !important;           /* black on hover too */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
+}
+
+/* Active/pressed state */
+button[kind="primary"]:active {
+    background-color: #64b5f6 !important;
+    color: #000000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1055,6 +1114,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
