@@ -689,7 +689,7 @@ span[data-baseweb="tag"] {
 
 /* ────────────────────────────────────────────────
    FIX 2: Make primary button TEXT black
-   (affects both "Fetch & Filter Bugs" and "Start Bug Learning")
+   (affects both "Fetch Bugs" and "Start Bug Learning")
 ──────────────────────────────────────────────── */
 button[kind="primary"],
 button[data-testid="baseButton-primary"],
@@ -725,16 +725,80 @@ button[kind="primary"]:active {
 tab1, tab2, tab3 = st.tabs(["📥 Fetch & Filter", "🧠 Bugs Learning", "🔮 Predict Potential Bugs"])
 
 # TAB 1 - Unchanged
+# with tab1:
+#     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
+    
+#     col1, col2 = st.columns([3, 1])
+#     with col1:
+#         selected_projects = st.multiselect("**Select Project(s)**", PROJECTS, default=PROJECTS)
+#     with col2:
+#         data_mode = st.radio("**Project Selection Mode**", ["Multiple", "Single"], horizontal=True)
+
+#     if st.button("🚀 Fetch Bugs", key="fetch", type="primary"):
+#         if not selected_projects:
+#             st.warning("Please select at least one project.")
+#         else:
+#             progress = st.progress(0)
+#             results = {}
+#             with ThreadPoolExecutor() as executor:
+#                 futures = {executor.submit(fetch_bugs, p): p for p in selected_projects}
+#                 for i, future in enumerate(as_completed(futures), 1):
+#                     p, df = future.result()
+#                     results[p] = df
+#                     progress.progress(i / len(selected_projects))
+
+#             processed = {}
+#             all_dfs = []
+#             for p, df in results.items():
+#                 if df is not None and not df.empty:
+#                     clean_df = preprocess_df(df)
+#                     processed[p] = clean_df
+#                     all_dfs.append(clean_df.assign(Project=p))
+
+#                     with st.expander(f"**{p}** – {len(clean_df):,} bugs", expanded=False):
+                        
+#                             display_cols = ["WorkItemId", "Title", "Severity", "State"]
+#                             if "WorkItemId" in clean_df.columns:
+#                                 display_df = clean_df[display_cols].head(10).copy()
+#                                 st.dataframe(display_df, width='stretch', hide_index=True)
+#                             else:
+#                                 st.dataframe(clean_df[["Title", "Severity", "State"]].head(10), width='stretch')
+#                             csv = clean_df.to_csv(index=False).encode()
+#                             st.download_button(f"📥 Download {p}", csv, f"{p}_bugs.csv", key=f"dl_{p}")
+
+#             if all_dfs:
+#                 combined_df = pd.concat(all_dfs, ignore_index=True)
+#                 st.session_state.bug_data_combined = combined_df
+#                 st.session_state.bug_data_individual = processed
+#                 st.session_state.full_df = combined_df  # real only for fallback
+#                 st.session_state.real_embeddings = prepare_embeddings(combined_df)
+#                 st.success(f"✅ Successfully loaded **{len(combined_df):,}** total real bugs!")
+#             else:
+#                 st.error("No data fetched.")
+
 with tab1:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        selected_projects = st.multiselect("**Select Project(s)**", PROJECTS, default=PROJECTS)
-    with col2:
-        data_mode = st.radio("**Project Selection Mode**", ["Multiple", "Single"], horizontal=True)
+    # ────────────────────────────────────────────────
+# Inside tab1:
+# ────────────────────────────────────────────────
 
-    if st.button("🚀 Fetch & Filter Bugs", key="fetch", type="primary"):
+    selected_projects = st.multiselect("**Select Project(s)**", PROJECTS, default=PROJECTS)
+    
+    # ── NEW: Display mode / filter mode ───────────────────────────────
+    st.markdown("**What to show after fetching?**")
+    view_mode = st.radio(
+        "Display mode",
+        options=[
+            "All bugs (complete list)",
+            "Only Blocker / Critical / Major",
+            "Top 15 most recently created"
+        ],
+        index=0,  # default = show everything
+        horizontal=True,
+        key="view_mode_radio"
+    )
+    
+    if st.button("🚀 Fetch Bugs", key="fetch", type="primary"):
         if not selected_projects:
             st.warning("Please select at least one project.")
         else:
@@ -746,35 +810,88 @@ with tab1:
                     p, df = future.result()
                     results[p] = df
                     progress.progress(i / len(selected_projects))
-
+    
             processed = {}
-            all_dfs = []
-            for p, df in results.items():
-                if df is not None and not df.empty:
-                    clean_df = preprocess_df(df)
-                    processed[p] = clean_df
-                    all_dfs.append(clean_df.assign(Project=p))
-
-                    with st.expander(f"**{p}** – {len(clean_df):,} bugs", expanded=False):
-                        
-                            display_cols = ["WorkItemId", "Title", "Severity", "State"]
-                            if "WorkItemId" in clean_df.columns:
-                                display_df = clean_df[display_cols].head(10).copy()
-                                st.dataframe(display_df, width='stretch', hide_index=True)
-                            else:
-                                st.dataframe(clean_df[["Title", "Severity", "State"]].head(10), width='stretch')
-                            csv = clean_df.to_csv(index=False).encode()
-                            st.download_button(f"📥 Download {p}", csv, f"{p}_bugs.csv", key=f"dl_{p}")
-
+            all_dfs = []           # complete real data (saved to session)
+            display_dfs = []       # filtered view data (what user sees)
+    
+            for p, raw_df in results.items():
+                if raw_df is None or raw_df.empty:
+                    continue
+    
+                clean_df = preprocess_df(raw_df)
+                clean_df = clean_df.assign(Project=p)
+    
+                # ──────────────── ALWAYS save full clean data ────────────────
+                processed[p] = clean_df
+                all_dfs.append(clean_df)
+    
+                # ──────────────── Create DISPLAY version (filtered) ────────────────
+                display_df = clean_df.copy()
+    
+                if view_mode == "Only Blocker / Critical / Major":
+                    severity_mask = display_df["Severity"].astype(str).str.contains(
+                        r"(?i)(blocker|critical|major)", na=False
+                    )
+                    display_df = display_df[severity_mask]
+    
+                elif view_mode == "Top 15 most recently created":
+                    if "CreatedDate" in display_df.columns:
+                        display_df["CreatedDate"] = pd.to_datetime(display_df["CreatedDate"], errors="coerce")
+                        display_df = display_df.sort_values("CreatedDate", ascending=False).head(15)
+                    else:
+                        display_df = display_df.head(15)  # fallback
+    
+                # else: "All bugs" → display_df remains = clean_df
+    
+                display_dfs.append(display_df)
+    
+                # Show expander with the *filtered* view
+                count_shown = len(display_df)
+                count_total = len(clean_df)
+    
+                label = f"**{p}** – showing {count_shown:,}"
+                if count_shown < count_total:
+                    label += f"  (of {count_total:,} total bugs)"
+    
+                with st.expander(label, expanded=False):
+                    display_cols = ["WorkItemId", "Title", "Severity", "State"]
+                    avail_cols = [c for c in display_cols if c in display_df.columns]
+                    st.dataframe(
+                        display_df[avail_cols].head(15 if view_mode != "Top 15 most recently created" else None),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+    
+                    # Download is ALWAYS full dataset
+                    csv_full = clean_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label=f"📥 Download FULL {p} (all severities)",
+                        data=csv_full,
+                        file_name=f"{p}_bugs_full.csv",
+                        mime="text/csv",
+                        key=f"dl_full_{p}"
+                    )
+    
+            # ── Save complete datasets to session state (for training etc.) ──
             if all_dfs:
-                combined_df = pd.concat(all_dfs, ignore_index=True)
-                st.session_state.bug_data_combined = combined_df
+                combined_full = pd.concat(all_dfs, ignore_index=True)
+                st.session_state.bug_data_combined = combined_full
                 st.session_state.bug_data_individual = processed
-                st.session_state.full_df = combined_df  # real only for fallback
-                st.session_state.real_embeddings = prepare_embeddings(combined_df)
-                st.success(f"✅ Successfully loaded **{len(combined_df):,}** total real bugs!")
+                st.session_state.full_df = combined_full
+                st.session_state.real_embeddings = prepare_embeddings(combined_full)
+    
+                shown_count = sum(len(d) for d in display_dfs)
+                total_count = len(combined_full)
+    
+                msg = f"✅ Loaded **{total_count:,}** total real bugs"
+                if shown_count < total_count:
+                    msg += f" — currently showing **{shown_count:,}** based on selected view mode"
+    
+                st.success(msg)
             else:
-                st.error("No data fetched.")
+                st.error("No valid data fetched.")
+
 
 # TAB 2 - Now saves hybrid data
 with tab2:
@@ -1114,6 +1231,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
