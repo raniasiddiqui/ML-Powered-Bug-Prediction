@@ -896,57 +896,11 @@ with tab1:
                 # ─────────────────────────────
     # Re-render previously fetched data after rerun
     # ─────────────────────────────
-            if st.session_state.get("fetch_completed") and "bug_data_individual" in st.session_state:
-        
-                processed = st.session_state.bug_data_individual
-        
-                for p, clean_df in processed.items():
-        
-                    display_df = clean_df.copy()
-        
-                    if view_mode == "Only Blocker / Critical / Major":
-                        severity_mask = display_df["Severity"].astype(str).str.contains(
-                            r"(?i)(blocker|critical|major)", na=False
-                        )
-                        display_df = display_df[severity_mask]
-        
-                    elif view_mode == "Top 15 most recently created":
-                        if "CreatedDate" in display_df.columns:
-                            display_df["CreatedDate"] = pd.to_datetime(display_df["CreatedDate"], errors="coerce")
-                            display_df = display_df.sort_values("CreatedDate", ascending=False).head(15)
-                        else:
-                            display_df = display_df.head(15)
-        
-                    count_shown = len(display_df)
-                    count_total = len(clean_df)
-        
-                    label = f"**{p}** – showing {count_shown:,}"
-                    if count_shown < count_total:
-                        label += f"  (of {count_total:,} total bugs)"
-        
-                    with st.expander(label, expanded=False):
-        
-                        display_cols = ["WorkItemId", "Title", "Severity", "State"]
-                        avail_cols = [c for c in display_cols if c in display_df.columns]
-        
-                        st.dataframe(
-                            display_df[avail_cols],
-                            use_container_width=True,
-                            hide_index=True
-                        )
-        
-                        csv_full = clean_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label=f"📥 Download FULL {p} (all severities)",
-                            data=csv_full,
-                            file_name=f"{p}_bugs_full.csv",
-                            mime="text/csv",
-                            key=f"dl_full_{p}_persist"
-                        )
+           
 
 
 
-# TAB 2 - Now saves hybrid data
+#  TAB 2 - Now saves hybrid data
 with tab2:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
 
@@ -1284,6 +1238,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
