@@ -905,9 +905,9 @@ with tab1:
 with tab2:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
 
-    # if "bug_data_combined" not in st.session_state:
-    #     st.info("Please fetch and preprocess data in the first tab first.")
-    #     st.stop()
+    if "bug_data_combined" not in st.session_state:
+        st.info("Please fetch and preprocess data in the first tab first.")
+        st.stop()
 
     # # ========================
     # # TRAINING CONTROLS
@@ -1132,9 +1132,9 @@ with tab2:
         st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
 
 
-    if "bug_data_combined" not in st.session_state:
-        st.info("Please fetch and preprocess data in the first tab first.")
-        st.stop()
+    # if "bug_data_combined" not in st.session_state:
+    #     st.info("Please fetch and preprocess data in the first tab first.")
+    #     st.stop()
 
     # ========================
     # TRAINING CONTROLS
@@ -1483,6 +1483,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
