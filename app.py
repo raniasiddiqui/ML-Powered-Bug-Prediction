@@ -905,41 +905,50 @@ with tab1:
 with tab2:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
 
-    if "bug_data_combined" not in st.session_state:
-        st.info("Please fetch and preprocess data in the first tab first.")
-        st.stop()
+    # if "bug_data_combined" not in st.session_state:
+    #     st.info("Please fetch and preprocess data in the first tab first.")
+    #     st.stop()
 
-    # ========================
-    # TRAINING CONTROLS
-    # ========================
-    training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
+    # # ========================
+    # # TRAINING CONTROLS
+    # # ========================
+    # training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
 
-    if training_scope == "Individual Project":
+    # if training_scope == "Individual Project":
 
-        project_options = list(st.session_state.bug_data_individual.keys())
-        selected_proj = st.selectbox("**Select Project**", project_options)
+    #     project_options = list(st.session_state.bug_data_individual.keys())
+    #     selected_proj = st.selectbox("**Select Project**", project_options)
 
-        df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
+    #     df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
 
-        # ✅ Ensure Project column always exists
-        if "Project" not in df_to_use.columns:
-            df_to_use["Project"] = selected_proj
+    #     # ✅ Ensure Project column always exists
+    #     if "Project" not in df_to_use.columns:
+    #         df_to_use["Project"] = selected_proj
 
-        name = selected_proj.replace(" ", "_")
+    #     name = selected_proj.replace(" ", "_")
 
-    else:
-        df_to_use = st.session_state.bug_data_combined
-        name = "Combined"
+    # else:
+    #     df_to_use = st.session_state.bug_data_combined
+    #     name = "Combined"
 
-    st.markdown(
-        f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
-        f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
-        unsafe_allow_html=True
-    )
+    # st.markdown(
+    #     f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
+    #     f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
+    #     unsafe_allow_html=True
+    # )
 
     if ("Custom_FeatureorModule" in df_to_use.columns or "Custom_CategoryandModules" in df_to_use.columns) and "Severity" in df_to_use.columns:
 
-        st.markdown("### Bug Distribution by Feature & Severity")
+        st.markdown("#### Bug Heatmap by Feature & Severity")
+        st.markdown(
+            "<div style='font-size:14px; color:#444; margin-bottom:10px;'>"
+            "This heatmap shows a detailed distribution of <b>historical bugs fetched from Azure DevOps</b>, "
+            "grouped by <b>Feature/Module</b> and <b>Severity</b>. It helps highlight which system areas "
+            "have historically experienced more issues and the severity levels associated with them."
+            "</div>",
+            unsafe_allow_html=True
+        )
+        
 
         summary_df = df_to_use.copy()
 
@@ -1010,7 +1019,7 @@ with tab2:
             ]) \
             .set_caption("Bug Heatmap")
 
-        st.markdown("#### Bug Heatmap by Feature & Severity")
+        
         st.dataframe(styled_pivot, width='stretch', height=700)
 
         # ========================
@@ -1121,9 +1130,48 @@ with tab2:
 
     else:
         st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
+
+
+    if "bug_data_combined" not in st.session_state:
+        st.info("Please fetch and preprocess data in the first tab first.")
+        st.stop()
+
+    # ========================
+    # TRAINING CONTROLS
+    # ========================
+    training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
+
+    if training_scope == "Individual Project":
+
+        project_options = list(st.session_state.bug_data_individual.keys())
+        selected_proj = st.selectbox("**Select Project**", project_options)
+
+        df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
+
+        # ✅ Ensure Project column always exists
+        if "Project" not in df_to_use.columns:
+            df_to_use["Project"] = selected_proj
+
+        name = selected_proj.replace(" ", "_")
+
+    else:
+        df_to_use = st.session_state.bug_data_combined
+        name = "Combined"
+
+    st.markdown(
+        f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
+        f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
+        unsafe_allow_html=True
+    )
     
 
     st.markdown("### Configure AI-Predicted Bug Generation")
+    st.markdown(
+        "Use the filters below to generate **AI-predicted bugs derived from historical Azure DevOps bug data**. "
+        "The system analyzes frequently occurring issues for the selected feature or module and predicts "
+        "potential future bugs. For instance, selecting **Admin Panel** will generate predicted bugs based "
+        "on past issues reported for the Admin Panel."
+    )
     bugs_per_cluster = st.slider(
         "Number of Bugs per Cluster",
         min_value=2,
@@ -1190,6 +1238,13 @@ with tab2:
 
         # Show cluster prompts
         st.markdown("### Historical Bug Clusters & Test Case Prompts")
+        st.markdown(
+            "This section groups **historical bugs fetched from Azure DevOps** into clusters based on similar "
+            "features and modules. By analyzing past issues, the system highlights **commonly occurring bug "
+            "patterns** across different areas of the product. These clusters help identify modules that have "
+            "historically experienced similar problems so that they can be used to "
+            "proactively test those areas and anticipate potential future bugs."
+        )
         st.dataframe(results["cluster_prompts"], width='stretch')
         csv_prompts = results["cluster_prompts"].to_csv(index=False).encode()
         st.download_button(
@@ -1428,6 +1483,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
