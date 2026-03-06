@@ -1101,11 +1101,11 @@ with tab2:
             mime="text/csv"
         )
 
-    else:
-        st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
+        else:
+            st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
 
-else:
-    st.info("Complete the training above to unlock bug analytics, synthetic bugs, and predictive insights.")
+    else:
+        st.info("Complete the training above to unlock bug analytics, synthetic bugs, and predictive insights.")
     
 
     st.markdown("### Configure AI-Predicted Bug Generation")
@@ -1413,6 +1413,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
