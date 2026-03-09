@@ -166,7 +166,7 @@ def preprocess_df(df: pd.DataFrame) -> pd.DataFrame:
 # ================================
 
 
-def generate_synthetic_bugs_for_cluster(cluster_df: pd.DataFrame, cluster_id: int, training_name: str, count: int = 4) -> list:
+def generate_synthetic_bugs_for_cluster(cluster_df: pd.DataFrame, cluster_id: int, training_name: str, count: int = 4, focus_feature: str = None, focus_severity: str = None) -> list:
     feature_col = "Custom_FeatureorModule"  # unified name after preprocessing
     
     top_modules = ["Not Specified"]
@@ -181,21 +181,21 @@ def generate_synthetic_bugs_for_cluster(cluster_df: pd.DataFrame, cluster_id: in
 You are a senior QA engineer. Generate exactly {count} new plausible bug titles for this cluster.
 Cluster: {training_name} (ID: {cluster_id}), {len(cluster_df)} real bugs
 Common Modules: {', '.join(top_modules)}
-Historical Examples: {sample_titles}
-Make sure the new bugs are realistic, relevant to the modules, and focus on scale, concurrency, edge cases, and performance issues.
-There should not be any overlap with existing titles.
-Make sure they are not redundant or trivial variations of existing bugs.
-The bugs should reflect potential future failures that could arise. 
-The bugs should be realistic and relevant to the modules mentioned.
-Dont mix the bugs from the projects selected. There should be no overlap between the bugs from different projects
-Cover most frequently occurred issues, most well-known potential issues that can occur 
+Historical Examples:
+""" + "\n".join([f"- {t}" for t in sample_titles]) + f"""
 
+STRICT FOCUS RULES:
+- ONLY generate bugs that are realistic for the module: **{focus_feature or 'any module'}**
+"""
 
+    if focus_severity:
+        prompt += f"- Prioritize issues that would most likely be classified as **{focus_severity}** severity\n"
 
-
-Task: Generate exactly {count} predictive bug titles (scale, concurrency, edge cases).
-Output Format: Return ONLY a JSON object with the key "titles".
-Example: {{"titles": ["bug1", "bug2", "bug3", "bug4"]}}
+    prompt += """
+- Focus on scale, concurrency, edge cases, regression, performance, security, integration, functional failures.
+- Make sure the new bugs are realistic, relevant, and NON-OVERLAPPING with historical examples
+- Avoid trivial variations — aim for interesting, plausible future defects
+- Output ONLY a JSON object: {"titles": ["bug title 1", "bug title 2", ...]}
 """
 
     try:
@@ -902,43 +902,265 @@ with tab1:
 
 #  TAB 2 - Now saves hybrid data
 #  TAB 2 - Now saves hybrid data
+# with tab2:
+#     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
+
+#     if "bug_data_combined" not in st.session_state:
+#         st.info("Please fetch and preprocess data in the first tab first.")
+#         st.stop()
+
+#     # # ========================
+#     # # TRAINING CONTROLS
+#     # # ========================
+#     training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
+
+#     if training_scope == "Individual Project":
+
+#         project_options = list(st.session_state.bug_data_individual.keys())
+#         selected_proj = st.selectbox("**Select Project**", project_options)
+
+#         df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
+
+#         # ✅ Ensure Project column always exists
+#         if "Project" not in df_to_use.columns:
+#             df_to_use["Project"] = selected_proj
+
+#         name = selected_proj.replace(" ", "_")
+
+#     else:
+#         df_to_use = st.session_state.bug_data_combined
+#         name = "Combined"
+
+#     # st.markdown(
+#     #     f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
+#     #     f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
+#     #     unsafe_allow_html=True
+#     # )
+
+#     if ("Custom_FeatureorModule" in df_to_use.columns or "Custom_CategoryandModules" in df_to_use.columns) and "Severity" in df_to_use.columns:
+
+#         st.markdown("#### Bug Heatmap by Feature & Severity")
+#         st.markdown(
+#             "<div style='font-size:14px; color:#444; margin-bottom:10px;'>"
+#             "This heatmap shows a detailed distribution of <b>historical bugs fetched from Azure DevOps</b>, "
+#             "grouped by <b>Feature/Module</b> and <b>Severity</b>. It helps highlight which system areas "
+#             "have historically experienced more issues and the severity levels associated with them."
+#             "</div>",
+#             unsafe_allow_html=True
+#         )
+        
+
+#         summary_df = df_to_use.copy()
+
+#         # Clean Severity
+#         summary_df["Severity"] = summary_df["Severity"].astype(str).str.replace(r"^\s*\d+\s*[-:]?\s*", "", regex=True).str.strip()
+
+#         # Unify feature column
+#         feature_col = "Custom_FeatureorModule"
+
+#         if "Custom_CategoryandModules" in summary_df.columns:
+#             if feature_col in summary_df.columns:
+#                 summary_df[feature_col] = summary_df[feature_col].fillna(summary_df["Custom_CategoryandModules"])
+#             else:
+#                 summary_df = summary_df.rename(columns={"Custom_CategoryandModules": feature_col})
+
+#         summary_df[feature_col] = summary_df[feature_col].fillna("Not Specified").str.strip().replace({"": "Not Specified"})
+
+#         # Pivot table
+#         pivot = pd.pivot_table(
+#             summary_df,
+#             values='Title',
+#             index=feature_col,
+#             columns='Severity',
+#             aggfunc='count',
+#             fill_value=0,
+#             margins=True,
+#             margins_name="Total"
+#         )
+
+#         pivot = pivot.sort_values(by="Total", ascending=False)
+#         total_row = pivot.loc["Total"]
+#         pivot = pivot.drop("Total")
+#         pivot = pd.concat([pivot, pd.DataFrame([total_row])])
+#         display_pivot = pivot.astype(int)
+
+#         # Styling function
+#         def highlight_high(val):
+#             if isinstance(val, (int, float)) and val == 0:
+#                 return 'color: black; font-weight: bold;'
+#             if isinstance(val, (int, float)) and val > 0:
+#                 max_val = display_pivot.iloc[:-1, :-1].max().max() or 1
+#                 intensity = min(val / max_val, 1.0)
+#                 r = int(230 - intensity * 80)
+#                 g = int(245 - intensity * 40)
+#                 b = 255
+#                 return f'background-color: rgb({r},{g},{b}); color: black; font-weight: bold; border-radius: 6px;'
+#             return ''
+
+#         styled_pivot = display_pivot.style \
+#             .map(highlight_high) \
+#             .format("{:,}") \
+#             .set_properties(**{
+#                 'text-align': 'center',
+#                 'padding': '14px',
+#                 'font-size': '15px',
+#                 'border': '1px solid #444'
+#             }) \
+#             .set_table_styles([
+#                 {'selector': 'th', 'props': [
+#                     ('background-color', '#90D5FF'),
+#                     ('color', '#00E5FF'),
+#                     ('font-weight', 'bold'),
+#                     ('text-align', 'center'),
+#                     ('padding', '14px'),
+#                     ('font-size', '14px')
+#                 ]},
+#                 {'selector': 'td', 'props': [('min-width', '90px')]}
+#             ]) \
+#             .set_caption("Bug Heatmap")
+
+        
+#         st.dataframe(styled_pivot, width='stretch', height=700)
+
+#         # ========================
+#         # BUG DETAILS FILTER
+#         # ========================
+#         st.markdown("#### View Bug Details")
+
+#         if "bug_details_df" not in st.session_state:
+#             st.session_state.bug_details_df = None
+#             st.session_state.bug_details_info = None
+
+#         with st.form(key="bug_details_form"):
+
+#             col1, col2 = st.columns(2)
+
+#             with col1:
+#                 feature_options = sorted(summary_df[feature_col].unique())
+#                 selected_feature = st.selectbox(
+#                     "Select Feature/Module",
+#                     options=feature_options,
+#                     index=0,
+#                     key="detail_feature_tab2"
+#                 )
+
+#             with col2:
+#                 severity_options = sorted(summary_df["Severity"].unique())
+#                 selected_severity = st.selectbox(
+#                     "Select Severity",
+#                     options=severity_options,
+#                     index=0,
+#                     key="detail_severity_tab2"
+#                 )
+
+#             submit = st.form_submit_button("Show Bugs", type="primary")
+
+#             if submit:
+
+#                 mask = (
+#                     (summary_df[feature_col] == selected_feature) &
+#                     (summary_df["Severity"] == selected_severity)
+#                 )
+
+#                 required_cols = ["WorkItemId", "Title", "State", "Priority", "CreatedDate", "Project"]
+#                 available_cols = [c for c in required_cols if c in summary_df.columns]
+
+#                 details_df = summary_df.loc[mask, available_cols].copy()
+
+#                 if not details_df.empty:
+
+#                     if "CreatedDate" in details_df.columns:
+#                         details_df["CreatedDate"] = pd.to_datetime(details_df["CreatedDate"], errors="coerce")
+#                         details_df = details_df.sort_values("CreatedDate", ascending=False)
+#                         details_df["CreatedDate"] = details_df["CreatedDate"].dt.strftime("%Y-%m-%d")
+
+#                     display_df = details_df[["WorkItemId", "Title", "State", "Priority", "CreatedDate"]].copy()
+
+#                     st.session_state.bug_details_df = details_df
+#                     st.session_state.bug_details_info = (
+#                         f"Found {len(details_df)} bug(s) in **{selected_feature}** – Severity: **{selected_severity}**"
+#                     )
+#                     st.session_state.bug_details_display = display_df
+
+#                 else:
+#                     st.session_state.bug_details_df = None
+#                     st.session_state.bug_details_info = "No bugs found for this combination."
+#                     st.session_state.bug_details_display = None
+
+#         # Results outside form
+#         if st.session_state.bug_details_info:
+
+#             if st.session_state.bug_details_df is not None:
+
+#                 st.success(st.session_state.bug_details_info)
+
+#                 st.dataframe(
+#                     st.session_state.bug_details_display,
+#                     width='stretch',
+#                     hide_index=True
+#                 )
+
+#                 download_cols = [
+#                     c for c in ["WorkItemId", "Title", "State", "Priority", "CreatedDate"]
+#                     if c in st.session_state.bug_details_df.columns
+#                 ]
+
+#                 csv = st.session_state.bug_details_df[download_cols].to_csv(index=False).encode()
+
+#                 st.download_button(
+#                     label="Download These Bugs",
+#                     data=csv,
+#                     file_name=f"bugs_{selected_feature.replace(' ', '_')}_{selected_severity}.csv",
+#                     mime="text/csv",
+#                     key="download_filtered_bugs"
+#                 )
+
+#             else:
+#                 st.info(st.session_state.bug_details_info)
+
+#         # Full heatmap download
+#         csv_data = display_pivot.to_csv().encode('utf-8')
+
+#         st.download_button(
+#             label="Download Full Bug Summary",
+#             data=csv_data,
+#             file_name=f"bug_heatmap_feature_severity_{name}.csv",
+#             mime="text/csv"
+#         )
+
+#     else:
+#         st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
+### heheh
 with tab2:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Bugs Learning</h2></div>", unsafe_allow_html=True)
-
     if "bug_data_combined" not in st.session_state:
         st.info("Please fetch and preprocess data in the first tab first.")
         st.stop()
 
-    # # ========================
-    # # TRAINING CONTROLS
-    # # ========================
+    # Training scope selection
     training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
 
     if training_scope == "Individual Project":
-
         project_options = list(st.session_state.bug_data_individual.keys())
         selected_proj = st.selectbox("**Select Project**", project_options)
-
         df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
-
-        # ✅ Ensure Project column always exists
         if "Project" not in df_to_use.columns:
             df_to_use["Project"] = selected_proj
-
         name = selected_proj.replace(" ", "_")
-
     else:
         df_to_use = st.session_state.bug_data_combined
         name = "Combined"
 
-    # st.markdown(
-    #     f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
-    #     f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
-    #     unsafe_allow_html=True
-    # )
+    st.markdown(
+        f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
+        f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
+        unsafe_allow_html=True
+    )
 
+    # ────────────────────────────────────────────────────────────────
+    #   HEATMAP + BUG DETAILS FILTER
+    # ────────────────────────────────────────────────────────────────
     if ("Custom_FeatureorModule" in df_to_use.columns or "Custom_CategoryandModules" in df_to_use.columns) and "Severity" in df_to_use.columns:
-
         st.markdown("#### Bug Heatmap by Feature & Severity")
         st.markdown(
             "<div style='font-size:14px; color:#444; margin-bottom:10px;'>"
@@ -948,22 +1170,17 @@ with tab2:
             "</div>",
             unsafe_allow_html=True
         )
-        
 
         summary_df = df_to_use.copy()
-
         # Clean Severity
         summary_df["Severity"] = summary_df["Severity"].astype(str).str.replace(r"^\s*\d+\s*[-:]?\s*", "", regex=True).str.strip()
-
         # Unify feature column
         feature_col = "Custom_FeatureorModule"
-
         if "Custom_CategoryandModules" in summary_df.columns:
             if feature_col in summary_df.columns:
                 summary_df[feature_col] = summary_df[feature_col].fillna(summary_df["Custom_CategoryandModules"])
             else:
                 summary_df = summary_df.rename(columns={"Custom_CategoryandModules": feature_col})
-
         summary_df[feature_col] = summary_df[feature_col].fillna("Not Specified").str.strip().replace({"": "Not Specified"})
 
         # Pivot table
@@ -977,7 +1194,6 @@ with tab2:
             margins=True,
             margins_name="Total"
         )
-
         pivot = pivot.sort_values(by="Total", ascending=False)
         total_row = pivot.loc["Total"]
         pivot = pivot.drop("Total")
@@ -1000,12 +1216,7 @@ with tab2:
         styled_pivot = display_pivot.style \
             .map(highlight_high) \
             .format("{:,}") \
-            .set_properties(**{
-                'text-align': 'center',
-                'padding': '14px',
-                'font-size': '15px',
-                'border': '1px solid #444'
-            }) \
+            .set_properties(**{'text-align': 'center', 'padding': '14px', 'font-size': '15px', 'border': '1px solid #444'}) \
             .set_table_styles([
                 {'selector': 'th', 'props': [
                     ('background-color', '#90D5FF'),
@@ -1019,22 +1230,18 @@ with tab2:
             ]) \
             .set_caption("Bug Heatmap")
 
-        
-        st.dataframe(styled_pivot, width='stretch', height=700)
+        st.dataframe(styled_pivot, use_container_width=True, height=700)
 
-        # ========================
-        # BUG DETAILS FILTER
-        # ========================
+        # ────────────────────────────────────────────────────────────────
+        #   BUG DETAILS FILTER + FOCUSED SYNTHETIC GENERATION
+        # ────────────────────────────────────────────────────────────────
         st.markdown("#### View Bug Details")
-
         if "bug_details_df" not in st.session_state:
             st.session_state.bug_details_df = None
             st.session_state.bug_details_info = None
 
         with st.form(key="bug_details_form"):
-
             col1, col2 = st.columns(2)
-
             with col1:
                 feature_options = sorted(summary_df[feature_col].unique())
                 selected_feature = st.selectbox(
@@ -1043,7 +1250,6 @@ with tab2:
                     index=0,
                     key="detail_feature_tab2"
                 )
-
             with col2:
                 severity_options = sorted(summary_df["Severity"].unique())
                 selected_severity = st.selectbox(
@@ -1052,28 +1258,22 @@ with tab2:
                     index=0,
                     key="detail_severity_tab2"
                 )
-
             submit = st.form_submit_button("Show Bugs", type="primary")
 
             if submit:
-
                 mask = (
                     (summary_df[feature_col] == selected_feature) &
                     (summary_df["Severity"] == selected_severity)
                 )
-
                 required_cols = ["WorkItemId", "Title", "State", "Priority", "CreatedDate", "Project"]
                 available_cols = [c for c in required_cols if c in summary_df.columns]
-
                 details_df = summary_df.loc[mask, available_cols].copy()
 
                 if not details_df.empty:
-
                     if "CreatedDate" in details_df.columns:
                         details_df["CreatedDate"] = pd.to_datetime(details_df["CreatedDate"], errors="coerce")
                         details_df = details_df.sort_values("CreatedDate", ascending=False)
                         details_df["CreatedDate"] = details_df["CreatedDate"].dt.strftime("%Y-%m-%d")
-
                     display_df = details_df[["WorkItemId", "Title", "State", "Priority", "CreatedDate"]].copy()
 
                     st.session_state.bug_details_df = details_df
@@ -1081,22 +1281,18 @@ with tab2:
                         f"Found {len(details_df)} bug(s) in **{selected_feature}** – Severity: **{selected_severity}**"
                     )
                     st.session_state.bug_details_display = display_df
-
                 else:
                     st.session_state.bug_details_df = None
                     st.session_state.bug_details_info = "No bugs found for this combination."
                     st.session_state.bug_details_display = None
 
-        # Results outside form
+        # Results + download + new focused generation button
         if st.session_state.bug_details_info:
-
             if st.session_state.bug_details_df is not None:
-
                 st.success(st.session_state.bug_details_info)
-
                 st.dataframe(
                     st.session_state.bug_details_display,
-                    width='stretch',
+                    use_container_width=True,
                     hide_index=True
                 )
 
@@ -1104,9 +1300,7 @@ with tab2:
                     c for c in ["WorkItemId", "Title", "State", "Priority", "CreatedDate"]
                     if c in st.session_state.bug_details_df.columns
                 ]
-
                 csv = st.session_state.bug_details_df[download_cols].to_csv(index=False).encode()
-
                 st.download_button(
                     label="Download These Bugs",
                     data=csv,
@@ -1115,12 +1309,69 @@ with tab2:
                     key="download_filtered_bugs"
                 )
 
+                # ────────────────────────────────────────────────
+                #   NEW: Focused synthetic bug generation
+                # ────────────────────────────────────────────────
+                st.markdown("---")
+                st.info("You can now generate **additional synthetic bugs focused only on this filtered view** "
+                        "(feature + severity combination). These will be added to the global prediction space.")
+
+                focused_count = st.slider(
+                    "How many focused synthetic bugs to generate?",
+                    min_value=3, max_value=20, value=8, step=1,
+                    key="focused_synth_count"
+                )
+
+                if st.button("🧬 Generate Focused AI-Predicted Bugs for this Filter", type="primary"):
+                    with st.spinner("Generating focused synthetic bugs..."):
+                        filtered_real = st.session_state.bug_details_df.copy()
+
+                        # Use the filtered bugs as the "cluster" for generation
+                        new_titles = generate_synthetic_bugs_for_cluster(
+                            cluster_df=filtered_real,
+                            cluster_id=997,  # fake id to distinguish
+                            training_name=f"Focused_{selected_feature}_{selected_severity}",
+                            count=focused_count,
+                            focus_feature=selected_feature,      # <-- passed to prompt
+                            focus_severity=selected_severity     # <-- passed to prompt
+                        )
+
+                        if new_titles:
+                            focused_df = pd.DataFrame({
+                                "Title": new_titles,
+                                "Source": "AI-Focused-Filter",
+                                "BugCluster": -2,
+                                feature_col: selected_feature,
+                                "Severity": selected_severity,
+                            })
+
+                            # Append to global hybrid dataset
+                            if "hybrid_df" in st.session_state and "hybrid_embeddings" in st.session_state:
+                                new_emb = embedder.encode(new_titles, show_progress_bar=False)
+
+                                st.session_state.hybrid_df = pd.concat([
+                                    st.session_state.hybrid_df,
+                                    focused_df
+                                ], ignore_index=True)
+
+                                st.session_state.hybrid_embeddings = np.vstack([
+                                    st.session_state.hybrid_embeddings,
+                                    new_emb
+                                ])
+
+                                st.success(f"Added **{len(new_titles)} focused synthetic bugs** "
+                                           f"for **{selected_feature}** ({selected_severity})")
+                                st.rerun()
+                            else:
+                                st.warning("Global hybrid dataset not yet initialized. "
+                                           "Run global training first.")
+                        else:
+                            st.warning("No new titles were generated.")
             else:
                 st.info(st.session_state.bug_details_info)
 
         # Full heatmap download
         csv_data = display_pivot.to_csv().encode('utf-8')
-
         st.download_button(
             label="Download Full Bug Summary",
             data=csv_data,
@@ -1483,6 +1734,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
