@@ -999,21 +999,21 @@ with tab2:
                 "text/csv"
             )
     st.markdown("### Historical Bug Clusters & Test Case Prompts")
-        st.markdown(
+    st.markdown(
             "This section groups **historical bugs fetched from Azure DevOps** into clusters based on similar "
             "features and modules. By analyzing past issues, the system highlights **commonly occurring bug "
             "patterns** across different areas of the product. These clusters help identify modules that have "
             "historically experienced similar problems so that they can be used to "
             "proactively test those areas and anticipate potential future bugs."
         )
-        st.dataframe(results["cluster_prompts"], width='stretch')
-        csv_prompts = results["cluster_prompts"].to_csv(index=False).encode()
-        st.download_button(
+    st.dataframe(results["cluster_prompts"], width='stretch')
+    csv_prompts = results["cluster_prompts"].to_csv(index=False).encode()
+    st.download_button(
             "Download Test Case Prompts",
             csv_prompts,
             f"test_case_prompts_{name}.csv",
             "text/csv"
-        )
+    )
 
 
     # ────────────────────────────────────────────────────────────────
@@ -1481,6 +1481,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
