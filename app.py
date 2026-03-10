@@ -928,12 +928,11 @@ with tab2:
         unsafe_allow_html=True
     )
 
-    st.markdown("### Configure AI-Predicted Bug Generation")
+    st.markdown("### Bug Learning and Prediction")
     st.markdown(
-        "Use the filters below to generate **AI-predicted bugs derived from historical Azure DevOps bug data**. "
-        "The system analyzes frequently occurring issues for the selected feature or module and predicts "
-        "potential future bugs. For instance, selecting **Admin Panel** will generate predicted bugs based "
-        "on past issues reported for the Admin Panel."
+        "Click on the button below to use the **Historical Bug Data from Azure Devops** and train the model on data. "
+        "This system analyzes all the past issues observed from the bugs and generates all possible likely bugs that"
+        "could appear again based on **Historical Patterns**. "
     )
     bugs_per_cluster = st.slider(
         "Number of Bugs per Cluster",
@@ -1172,8 +1171,8 @@ with tab2:
                 #   NEW: Focused synthetic bug generation
                 # ────────────────────────────────────────────────
                 st.markdown("---")
-                st.info("You can now generate **additional synthetic bugs focused only on this filtered view** "
-                        "(feature + severity combination). These will be added to the global prediction space.")
+                st.info("You can now generate **additional AI-Predicted bugs focused only on this filtered view** "
+                        "(feature + severity combination).")
 
                 focused_count = st.slider(
                     "How many focused synthetic bugs to generate?",
@@ -1182,7 +1181,7 @@ with tab2:
                 )
 
                 if st.button("🧬 Generate Focused AI-Predicted Bugs for this Filter", type="primary"):
-                    with st.spinner("Generating focused synthetic bugs..."):
+                    with st.spinner("Generating focused AI-Predicted bugs..."):
                         filtered_real = st.session_state.bug_details_df.copy()
 
                         new_titles = generate_synthetic_bugs_for_cluster(
@@ -1234,7 +1233,7 @@ with tab2:
                             st.session_state.focused_synthetic_latest.extend(new_entries)
 
                             # Show immediate result
-                            st.success(f"Added **{len(new_titles)} focused synthetic bugs** for **{selected_feature}** ({selected_severity})")
+                            st.success(f"Added **{len(new_titles)} focused AI-Predicted bugs** for **{selected_feature}** ({selected_severity})")
                             st.markdown(f"**Just generated ({len(new_titles)} bugs):**")
                             st.dataframe(
                                 pd.DataFrame(new_entries)[["Title", "Feature", "Severity", "GeneratedAt"]],
@@ -1261,117 +1260,15 @@ with tab2:
         st.info("Required columns (Severity and Feature/Module) not available for bug heatmap.")
 
 
-    # if "bug_data_combined" not in st.session_state:
-    #     st.info("Please fetch and preprocess data in the first tab first.")
-    #     st.stop()
-
-    # ========================
-    # TRAINING CONTROLS
-    # ========================
-    # training_scope = st.radio("**Learning Scope**", ["Combined (All Projects)", "Individual Project"], horizontal=True)
-
-    # if training_scope == "Individual Project":
-
-    #     project_options = list(st.session_state.bug_data_individual.keys())
-    #     selected_proj = st.selectbox("**Select Project**", project_options)
-
-    #     df_to_use = st.session_state.bug_data_individual[selected_proj].copy()
-
-    #     # ✅ Ensure Project column always exists
-    #     if "Project" not in df_to_use.columns:
-    #         df_to_use["Project"] = selected_proj
-
-    #     name = selected_proj.replace(" ", "_")
-
-    # else:
-    #     df_to_use = st.session_state.bug_data_combined
-    #     name = "Combined"
-
-    # st.markdown(
-    #     f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
-    #     f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
-    #     unsafe_allow_html=True
-    # )
-    
-
-    # st.markdown("### Configure AI-Predicted Bug Generation")
-    # st.markdown(
-    #     "Use the filters below to generate **AI-predicted bugs derived from historical Azure DevOps bug data**. "
-    #     "The system analyzes frequently occurring issues for the selected feature or module and predicts "
-    #     "potential future bugs. For instance, selecting **Admin Panel** will generate predicted bugs based "
-    #     "on past issues reported for the Admin Panel."
-    # )
-    # bugs_per_cluster = st.slider(
-    #     "Number of Bugs per Cluster",
-    #     min_value=2,
-    #     max_value=15,
-    #     value=4,
-    #     step=1,
-    #     help="Higher = richer predictive coverage (e.g., 15 × 8 clusters = 120 total synthetic bugs)"
-    # )
-
-    # if st.button("Start Bug Learning", type="primary", key="start_training"):
-    #     with st.spinner("Training models and generating AI-Predicted bugs..."):
-    #         results = train_all_models(df_to_use, name, bugs_per_cluster=bugs_per_cluster)
-
-    #     if results:
-    #         # Save everything to session state so it persists
-    #         st.session_state.training_results = results
-    #         st.session_state.training_name = name
-    #         st.session_state.training_df_to_use = df_to_use.copy()  # Save for later use in heatmap
-    #         st.session_state.hybrid_df = results["all_df"]
-    #         st.session_state.hybrid_embeddings = results["all_embeddings"]
-
-    #         # Immediate success feedback
-    #         col1, col2, col3 = st.columns(3)
-    #         with col1:
-    #             st.metric("Real Bugs", f"{results['n_bugs']:,}")
-    #         with col2:
-    #             st.metric("Synthetic Bugs", len(results.get("synthetic_df", [])))
-    #         with col3:
-    #             st.metric("Total Search Space", len(results["all_df"]))
-
-    #         st.markdown("### Models Trained & Saved")
-    #         for m in results["models"]:
-    #             st.success(m)
-
-    #         st.balloons()
-    #         st.success("Hybrid AI training completed! Scroll down to explore the bug heatmap and details.")
-    #         st.rerun()  # Refresh once to show the new section below
-
-    # # ========================
-    # # PERSISTENT RESULTS SECTION (Shown after training)
-    # # ========================
-    # if "training_results" in st.session_state:
-    #     results = st.session_state.training_results
-    #     name = st.session_state.training_name
-    #     df_to_use = st.session_state.training_df_to_use  # Retrieve saved dataframe
-    #     summary_df = df_to_use.copy()
-
-    #     # Show synthetic bugs (same as before)
-    #     if not results["synthetic_df"].empty:
-    #         st.markdown(f"### AI-Predicted Bugs from model ({len(results['synthetic_df'])} total)")
-    #         display_df = results["synthetic_df"][["Title", "Source"]].copy()
-    #         st.dataframe(
-    #             display_df.style.set_properties(**{'text-align': 'left', 'white-space': 'pre-wrap'}),
-    #             width='stretch',
-    #             height=min(600, len(display_df) * 40 + 100)
-    #         )
-    #         csv_synth = results["synthetic_df"].to_csv(index=False).encode()
-    #         st.download_button(
-    #             "Download AI-Predicted Bugs",
-    #             csv_synth,
-    #             f"ai_predicted_bugs_{name}.csv",
-    #             "text/csv"
-    #         )
-
             # ────────────────────────────────────────────────────────────────
     #   FOCUSED SYNTHETIC BUGS HISTORY (persistent in this session)
     # ────────────────────────────────────────────────────────────────
-    st.markdown("### Focused Synthetic Bugs (Generated per Filter)")
+    st.markdown("### Focused AI-Predicted Bugs (Generated per Filter)")
     st.markdown(
-        "These are additional AI-generated bugs created specifically for a selected **feature + severity** combination. "
-        "They have been added to the global prediction space and will be considered when predicting risks in Tab 3."
+        "Use the filters above to generate **AI-predicted bugs derived from historical Azure DevOps bug data**. "
+        "The system analyzes frequently occurring issues for the selected feature or module and predicts "
+        "potential future bugs. For instance, selecting **Admin Panel** will generate predicted bugs based "
+        "on past issues reported for the Admin Panel."
     )
 
     if "focused_synthetic_latest" not in st.session_state:
@@ -1403,25 +1300,9 @@ with tab2:
             st.rerun()
 
     else:
-        st.info("No focused synthetic bugs generated yet. Select a feature + severity filter and use the button above.")
+        st.info("No focused AI-Predicted bugs generated yet. Select a feature + severity filter and use the button above.")
 
-        # Show cluster prompts
-        # st.markdown("### Historical Bug Clusters & Test Case Prompts")
-        # st.markdown(
-        #     "This section groups **historical bugs fetched from Azure DevOps** into clusters based on similar "
-        #     "features and modules. By analyzing past issues, the system highlights **commonly occurring bug "
-        #     "patterns** across different areas of the product. These clusters help identify modules that have "
-        #     "historically experienced similar problems so that they can be used to "
-        #     "proactively test those areas and anticipate potential future bugs."
-        # )
-        # st.dataframe(results["cluster_prompts"], width='stretch')
-        # csv_prompts = results["cluster_prompts"].to_csv(index=False).encode()
-        # st.download_button(
-        #     "Download Test Case Prompts",
-        #     csv_prompts,
-        #     f"test_case_prompts_{name}.csv",
-        #     "text/csv"
-        # )
+        
 
 
 # TAB 3 - Now uses hybrid data
@@ -1481,6 +1362,7 @@ st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
 
             unsafe_allow_html=True)
+
 
 
 
