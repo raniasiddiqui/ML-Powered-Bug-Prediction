@@ -619,10 +619,12 @@ def get_grok_predictions(prompt: str) -> dict:
 
         # ── Aggressive cleaning ─────────────────────────────────────
         content = content.strip()
-        if content.startswith("```json
+
+        if content.startswith("```json"):
             content = content.split("```json", 1)[1].split("```", 1)[0].strip()
         elif content.startswith("```"):
             content = content.split("```", 1)[1].split("```", 1)[0].strip()
+
         content = content.strip("` \n")
 
         try:
@@ -1575,3 +1577,4 @@ with tab3:
                         "predicted_new_risks.csv",
                         "text/csv"
                     )
+
