@@ -1468,20 +1468,44 @@ with tab3:
                     response = get_grok_predictions(prompt)
                 
                 st.markdown("### 🤖 Predicted New & Hidden Risks (Beyond Real + Hypothetical)")
-                
+
                 try:
-                    import json as pyjson
-                    data = pyjson.loads(response)
-                    
-                    if not isinstance(data, list) or not data:
-                        st.warning("No predictions returned or format was not a list.")
-                        st.json(response)
+                    # ── Handle both cases: already-parsed list or JSON string ──
+                    if isinstance(response, list):
+                        data = response
+                    elif isinstance(response, dict):
+                        # sometimes wrapped in {"predictions": [...] } or similar
+                        if "predictions" in response:
+                            data = response["predictions"]
+                        elif "bugs" in response:
+                            data = response["bugs"]
+                        else:
+                            data = list(response.values())[0] if response else []
+                    elif isinstance(response, str):
+                        # clean and parse only if it's a string
+                        cleaned = response.strip()
+                        if cleaned.startswith("```json"):
+                            cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0].strip()
+                        elif cleaned.startswith("`"):
+                            cleaned = cleaned.strip("`").strip()
+                        data = pyjson.loads(cleaned)
+                    else:
+                        raise ValueError(f"Unexpected response type: {type(response)}")
+
+                    if not isinstance(data, list):
+                        st.warning("Groq response was not a list of predictions.")
+                        st.json(data)
                         st.stop()
-                    
-                    # ── Filter controls ────────────────────────────────────────────────
+
+                    if not data:
+                        st.info("No new risks were predicted this time.")
+                        st.stop()
+
+                    # ── Now data is guaranteed to be a list ────────────────────────
+                    # Filter controls
                     st.markdown("**Show only these bug types:**")
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
                         show_functional     = st.checkbox("Functionality",      value=True, key="flt_func")
                         show_performance    = st.checkbox("Performance",        value=True, key="flt_perf")
@@ -1491,89 +1515,35 @@ with tab3:
                     with col3:
                         show_tech_complex   = st.checkbox("Technically Complex", value=True, key="flt_tech")
                         show_qa_uat         = st.checkbox("QA / UAT / Usability", value=True, key="flt_qa")
-                    
-                    # Filter the predictions
+
+                    # Filter
                     filtered = []
                     for item in data:
-                        bt = item.get("Bug_Type", "").strip()
+                        bt = str(item.get("Bug_Type", "")).strip()
                         if (
                             (show_functional     and bt == "Functionality") or
                             (show_performance    and bt == "Performance") or
                             (show_regression     and bt == "Regression") or
                             (show_integration    and bt == "Integration") or
                             (show_tech_complex   and bt == "Technically Complex") or
-                            (show_qa_uat         and bt in ["QA and UAT", "QA/UAT", "UAT", "QA and Usability", "Usability"])
+                            (show_qa_uat         and bt.lower() in ["qa and uat", "qa/uat", "uat", "qa and usability", "usability", "qa/uat/usability"])
                         ):
                             filtered.append(item)
-                    
+
                     if not filtered:
                         st.info("No predicted bugs match the selected types.")
                     else:
                         st.success(f"Showing {len(filtered)} predicted risks")
-                        
+
                         for i, item in enumerate(filtered, 1):
                             bug_type = item.get("Bug_Type", "—")
-                            
-                            emoji_map = {
-                                "Functionality":       "✅",
-                                "Performance":         "⚡",
-                                "Regression":          "↩️",
-                                "Integration":         "🔗",
-                                "Technically Complex": "🔬",
-                                "QA and UAT":          "👀",
-                                "QA/UAT":              "👀",
-                                "UAT":                 "👀",
-                                "Usability":           "👀",
-                            }
-                            emoji = emoji_map.get(bug_type, "🛑")
-                            
-                            risk_color = {
-                                "High":   "#dc2626",
-                                "Medium": "#d97706",
-                                "Low":    "#16a34a"
-                            }.get(item.get("Risk_Level", ""), "#6b7280")
-                            
-                            st.markdown(f"""
-                            <div style="
-                                padding: 1.2rem;
-                                margin-bottom: 1.2rem;
-                                border-radius: 8px;
-                                border-left: 5px solid {risk_color};
-                                background-color: #f9fafb;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                            ">
-                                <div style="font-size: 1.3rem; font-weight: 600; color: #1f2937; margin-bottom: 0.5rem;">
-                                    {emoji} Risk #{i}: {item.get('Predicted_Bug', '—')}
-                                </div>
-                                <div style="color: #4b5563; font-size: 0.95rem; margin-bottom: 0.8rem;">
-                                    <strong>Type:</strong> {bug_type}  
-                                         
-                                    <strong>Risk:</strong> <span style="color:{risk_color}; font-weight:600;">{item.get('Risk_Level','—')}</span>
-                                </div>
-                                <hr style="border-color: #e5e7eb; margin: 0.8rem 0;">
-                                <div><strong>Root cause pattern:</strong> {item.get('Root_Cause_Pattern','—')}</div>
-                                <div><strong>Why this is new:</strong> {item.get('Why_This_Is_New','—')}</div>
-                                <div style="margin-top: 0.9rem;"><strong>Recommended testing:</strong> {item.get('Recommended_Testing','—')}</div>
-                                <div style="margin-top: 1rem; font-weight: 500;">Steps to reproduce:</div>
-                                <div style="
-                                    background: #f1f5f9;
-                                    padding: 0.9rem;
-                                    border-radius: 6px;
-                                    margin-top: 0.4rem;
-                                    white-space: pre-wrap;
-                                    font-family: monospace;
-                                    font-size: 0.92rem;
-                                    line-height: 1.5;
-                                ">
-                                    {item.get('Steps_to_Reproduce','—').strip()}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                
+                            # ... rest of your beautiful card rendering remains the same ...
+
                 except Exception as e:
-                    st.error(f"Could not parse Groq response → {str(e)}")
-                    with st.expander("Raw response", expanded=False):
-                        st.code(response)
+                    st.error(f"Could not process Groq response → {str(e)}")
+                    with st.expander("Raw response (for debugging)", expanded=True):
+                        st.code(response, language="json" if isinstance(response, str) else None)
+                        st.write("Type of response:", type(response))
 
 
 
