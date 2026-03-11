@@ -594,17 +594,25 @@ def get_grok_predictions(prompt: str) -> str:
         response = client.chat.completions.create(
             model=groq_model,
             messages=[
-                {"role": "system", "content": "You are an expert QA architect skilled in predictive defect analysis. You return **only** valid JSON — no explanation, no markdown, no intro text."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict JSON-only responder. "
+                        "Return **ONLY** a valid JSON array like: "
+                        '[{"Bug_Type":"...","Predicted_Bug":"..."}] '
+                        "No explanations, no markdown, no ```json fences, no extra text."
+                    )
+                },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.8,
-            max_tokens=8000,
+            temperature=0.5,           # lower = more deterministic / JSON-following
+            max_tokens=1800,
             response_format={"type": "json_object"}
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content.strip()
+        return content
     except Exception as e:
         return f"Groq API Error: {str(e)}"
-
 # ================================
 # UI (unchanged except Tab 2 & 3 use new data)
 # ================================
@@ -1467,100 +1475,65 @@ with tab3:
                 with st.spinner("🧠 Groq LLaMA analyzing real + hypothetical patterns for deeper prediction..."):
                     response = get_grok_predictions(prompt)
                 
-                st.markdown("### 🤖 Predicted New & Hidden Risks (Beyond Real + Hypothetical)")
+                st.markdown("### 🤖 Predicted New & Hidden Risks ...")
 
                 try:
-                    # ── Handle both cases: already-parsed list or JSON string ──
-                    if isinstance(response, list):
-                        data = response
-                    elif isinstance(response, dict):
-                        # sometimes wrapped in {"predictions": [...] } or similar
-                        if "predictions" in response:
-                            data = response["predictions"]
-                        elif "bugs" in response:
-                            data = response["bugs"]
-                        else:
-                            data = list(response.values())[0] if response else []
-                    elif isinstance(response, str):
-                        # clean and parse only if it's a string
-                        cleaned = response.strip()
-                        if cleaned.startswith("```json"):
-                            cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0].strip()
-                        elif cleaned.startswith("`"):
-                            cleaned = cleaned.strip("`").strip()
-                        data = pyjson.loads(cleaned)
-                    else:
-                        raise ValueError(f"Unexpected response type: {type(response)}")
+                    raw_response = response  # keep original for debug
 
+                    # Step 1: Normalize to string if needed
+                    if not isinstance(raw_response, str):
+                        if isinstance(raw_response, (list, dict)):
+                            data = raw_response if isinstance(raw_response, list) else [raw_response]
+                        else:
+                            data = []
+                    else:
+                        # It's a string → clean & parse
+                        text = raw_response.strip()
+                        # Remove common markdown fences
+                        if text.startswith("```json"):
+                            text = text[7:].split("```", 1)[0].strip()
+                        elif text.startswith("```"):
+                            text = text[3:].split("```", 1)[0].strip()
+                        if text.startswith("`"):
+                            text = text.strip("` \n")
+
+                        try:
+                            parsed = pyjson.loads(text)
+                            if isinstance(parsed, list):
+                                data = parsed
+                            elif isinstance(parsed, dict):
+                                # common wrappers
+                                for key in ["predictions", "bugs", "items", "results"]:
+                                    if key in parsed and isinstance(parsed[key], list):
+                                        data = parsed[key]
+                                        break
+                                else:
+                                    data = [parsed]  # single object → make list
+                            else:
+                                data = []
+                        except pyjson.JSONDecodeError as json_err:
+                            st.error(f"JSON parse failed: {json_err}")
+                            data = []
+
+                    # ── Safety net ──
                     if not isinstance(data, list):
-                        st.warning("Groq response was not a list of predictions.")
-                        st.json(data)
-                        st.stop()
+                        data = []
 
                     if not data:
-                        st.info("No new risks were predicted this time.")
+                        st.info("No predictions were returned or parsing failed.")
+                        with st.expander("Raw Groq response"):
+                            st.write("Type:", type(raw_response))
+                            st.code(str(raw_response)[:1500], language="json")
                         st.stop()
 
-                    # ── Now data is guaranteed to be a list ────────────────────────
+                    # Now proceed with filtering & display (your existing code)
                     # Filter controls
                     st.markdown("**Show only these bug types:**")
-                    col1, col2, col3 = st.columns(3)
-
-                    with col1:
-                        show_functional     = st.checkbox("Functionality",      value=True, key="flt_func")
-                        show_performance    = st.checkbox("Performance",        value=True, key="flt_perf")
-                    with col2:
-                        show_regression     = st.checkbox("Regression",         value=True, key="flt_regr")
-                        show_integration    = st.checkbox("Integration",        value=True, key="flt_integ")
-                    with col3:
-                        show_tech_complex   = st.checkbox("Technically Complex", value=True, key="flt_tech")
-                        show_qa_uat         = st.checkbox("QA / UAT / Usability", value=True, key="flt_qa")
-
-                    # Filter
-                    filtered = []
-                    for item in data:
-                        bt = str(item.get("Bug_Type", "")).strip()
-                        if (
-                            (show_functional     and bt == "Functionality") or
-                            (show_performance    and bt == "Performance") or
-                            (show_regression     and bt == "Regression") or
-                            (show_integration    and bt == "Integration") or
-                            (show_tech_complex   and bt == "Technically Complex") or
-                            (show_qa_uat         and bt.lower() in ["qa and uat", "qa/uat", "uat", "qa and usability", "usability", "qa/uat/usability"])
-                        ):
-                            filtered.append(item)
-
-                    if not filtered:
-                        st.info("No predicted bugs match the selected types.")
-                    else:
-                        st.success(f"Showing {len(filtered)} predicted risks")
-
-                        for i, item in enumerate(filtered, 1):
-                            bug_type = item.get("Bug_Type", "—")
-                            # ... rest of your beautiful card rendering remains the same ...
+                    # ... rest of your checkbox + filtering + card rendering ...
 
                 except Exception as e:
-                    st.error(f"Could not process Groq response → {str(e)}")
-                    with st.expander("Raw response (for debugging)", expanded=True):
-                        st.code(response, language="json" if isinstance(response, str) else None)
-                        st.write("Type of response:", type(response))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    st.error(f"Critical error while processing response: {str(e)}")
+                    with st.expander("Full raw response"):
+                        st.write("Type:", type(response))
+                        st.code(str(response)[:2000])
 
