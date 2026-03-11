@@ -589,7 +589,7 @@ Return ONLY a valid JSON **array** of 5–10 such objects — nothing else befor
 """
     return prompt.strip()
 
-def get_grok_predictions(prompt: str) -> str:
+def get_grok_predictions(prompt: str) -> dict:
     try:
         response = client.chat.completions.create(
             model=groq_model,
@@ -597,22 +597,56 @@ def get_grok_predictions(prompt: str) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You are a strict JSON-only responder. "
-                        "Return **ONLY** a valid JSON array like: "
-                        '[{"Bug_Type":"...","Predicted_Bug":"..."}] '
-                        "No explanations, no markdown, no ```json fences, no extra text."
+                        "You are a strict JSON responder.\n"
+                        "Return **only** a JSON object with this exact structure:\n"
+                        "{\n"
+                        '  "predicted_bugs": [\n'
+                        '    {"Bug_Type": "...", "Predicted_Bug": "...", ...},\n'
+                        '    ...\n'
+                        "  ]\n"
+                        "}\n"
+                        "No explanations, no markdown, no code fences, no extra text outside the JSON."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.5,           # lower = more deterministic / JSON-following
-            max_tokens=1800,
+            temperature=0.45,           # slightly lower than 0.5 usually better for format
+            max_tokens=2000,
             response_format={"type": "json_object"}
         )
+
         content = response.choices[0].message.content.strip()
-        return content
+
+        # ── Aggressive cleaning ─────────────────────────────────────
+        content = content.strip()
+        if content.startswith("```json
+            content = content.split("```json", 1)[1].split("```", 1)[0].strip()
+        elif content.startswith("```"):
+            content = content.split("```", 1)[1].split("```", 1)[0].strip()
+        content = content.strip("` \n")
+
+        try:
+            parsed = pyjson.loads(content)
+            if isinstance(parsed, dict) and "predicted_bugs" in parsed:
+                return parsed
+            elif isinstance(parsed, list):
+                return {"predicted_bugs": parsed}
+            else:
+                return {"predicted_bugs": []}
+        except pyjson.JSONDecodeError:
+            # Fallback: try to find array inside
+            try:
+                array_match = re.search(r'\[\s*\{.*\}\s*\]', content, re.DOTALL)
+                if array_match:
+                    return {"predicted_bugs": pyjson.loads(array_match.group(0))}
+            except:
+                pass
+
+        return {"predicted_bugs": []}
+
     except Exception as e:
-        return f"Groq API Error: {str(e)}"
+        st.error(f"Groq call failed: {str(e)[:120]}")
+        return {"predicted_bugs": []}
 # ================================
 # UI (unchanged except Tab 2 & 3 use new data)
 # ================================
@@ -1472,68 +1506,72 @@ with tab3:
                 with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
                     st.code(prompt, language="text")
                 
-                with st.spinner("🧠 Groq LLaMA analyzing real + hypothetical patterns for deeper prediction..."):
-                    response = get_grok_predictions(prompt)
+                with st.spinner("Asking Groq to predict new risks..."):  
+                    result = get_grok_predictions(prompt)
+                    predictions = result.get("predicted_bugs", [])
                 
-                st.markdown("### 🤖 Predicted New & Hidden Risks ...")
+                st.markdown("### 🤖 Predicted New & Hidden Risks")
 
-                try:
-                    raw_response = response  # keep original for debug
+                if not predictions:
+                    st.warning("No new risks were predicted this time. Try describing the feature in more detail.")
+                    with st.expander("Raw Groq response (debug)"):
+                        st.json(result)
+                    st.stop()
 
-                    # Step 1: Normalize to string if needed
-                    if not isinstance(raw_response, str):
-                        if isinstance(raw_response, (list, dict)):
-                            data = raw_response if isinstance(raw_response, list) else [raw_response]
-                        else:
-                            data = []
-                    else:
-                        # It's a string → clean & parse
-                        text = raw_response.strip()
-                        # Remove common markdown fences
-                        if text.startswith("```json"):
-                            text = text[7:].split("```", 1)[0].strip()
-                        elif text.startswith("```"):
-                            text = text[3:].split("```", 1)[0].strip()
-                        if text.startswith("`"):
-                            text = text.strip("` \n")
-
-                        try:
-                            parsed = pyjson.loads(text)
-                            if isinstance(parsed, list):
-                                data = parsed
-                            elif isinstance(parsed, dict):
-                                # common wrappers
-                                for key in ["predictions", "bugs", "items", "results"]:
-                                    if key in parsed and isinstance(parsed[key], list):
-                                        data = parsed[key]
-                                        break
-                                else:
-                                    data = [parsed]  # single object → make list
-                            else:
-                                data = []
-                        except pyjson.JSONDecodeError as json_err:
-                            st.error(f"JSON parse failed: {json_err}")
-                            data = []
-
-                    # ── Safety net ──
-                    if not isinstance(data, list):
-                        data = []
-
-                    if not data:
-                        st.info("No predictions were returned or parsing failed.")
-                        with st.expander("Raw Groq response"):
-                            st.write("Type:", type(raw_response))
-                            st.code(str(raw_response)[:1500], language="json")
-                        st.stop()
-
-                    # Now proceed with filtering & display (your existing code)
-                    # Filter controls
-                    st.markdown("**Show only these bug types:**")
-                    # ... rest of your checkbox + filtering + card rendering ...
-
-                except Exception as e:
-                    st.error(f"Critical error while processing response: {str(e)}")
-                    with st.expander("Full raw response"):
-                        st.write("Type:", type(response))
-                        st.code(str(response)[:2000])
-
+                # ── Optional: Bug type filter checkboxes ─────────────────────
+                st.markdown("**Show only these bug types:**")
+        
+                all_types = sorted(set(p.get("Bug_Type", "Unknown") for p in predictions))
+                selected_types = st.multiselect(
+                    "Bug categories",
+                    options=all_types,
+                    default=all_types,
+                    key="bug_type_filter"
+                )
+        
+                filtered_preds = [
+                    p for p in predictions
+                    if p.get("Bug_Type", "Unknown") in selected_types
+                ]
+        
+                if not filtered_preds:
+                    st.info("No predictions match the selected bug types.")
+                else:
+                    for i, item in enumerate(filtered_preds, 1):
+                        bug_type = item.get("Bug_Type", "Unknown")
+                        title   = item.get("Predicted_Bug", "—")
+                        root    = item.get("Root_Cause_Pattern", "—")
+                        why_new = item.get("Why_This_Is_New", "—")
+                        risk    = item.get("Risk_Level", "—")
+                        test    = item.get("Recommended_Testing", item.get("Testing_Technique", "—"))
+                        steps   = item.get("Steps_to_Reproduce", "—")
+        
+                        color = {
+                            "High": "#ff5252",
+                            "Medium": "#ffb74d",
+                            "Low": "#81c784"
+                        }.get(risk, "#78909c")
+        
+                        st.markdown(f"""
+                        <div style="border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 6px;">
+                            <h4 style="margin: 0 0 0.6rem 0; color: #424242;">Risk #{i} — {bug_type}</h4>
+                            <div><strong>Predicted Bug:</strong> {title}</div>
+                            <div><strong>Root Cause Pattern:</strong> {root}</div>
+                            <div><strong>Why New:</strong> {why_new}</div>
+                            <div><strong>Risk Level:</strong> <strong style="color:{color}">{risk}</strong></div>
+                            <div><strong>Recommended Testing:</strong> {test}</div>
+                            <div style="margin-top:0.8rem;"><strong>Steps to Reproduce:</strong></div>
+                            <div style="white-space: pre-wrap; font-family: monospace; background:#f0f2f5; padding:0.8rem; border-radius:4px;">{steps}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+        
+                # Optional: download
+                if filtered_preds:
+                    df_export = pd.DataFrame(filtered_preds)
+                    csv = df_export.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download predictions as CSV",
+                        csv,
+                        "predicted_new_risks.csv",
+                        "text/csv"
+                    )
