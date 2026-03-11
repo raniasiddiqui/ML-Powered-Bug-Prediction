@@ -452,68 +452,140 @@ def prepare_embeddings(_df: pd.DataFrame):
 # ================================
 # UPDATED PREDICTION PROMPT (Hybrid)
 # ================================
+# def generate_predictive_risk_prompt(feature_name: str, all_df: pd.DataFrame, all_embeddings: np.ndarray, top_k: int = 5) -> str:
+#     if all_df.empty or "Title" not in all_df.columns:
+#         return "No bug data available."
+
+#     query_vec = embedder.encode([feature_name])
+#     sims = cosine_similarity(query_vec, all_embeddings)[0]
+#     top_indices = sims.argsort()[-top_k*2:][::-1]  # Get more to split real/synthetic
+
+#     real_bugs = []
+#     synth_bugs = []
+
+#     for idx in top_indices:
+#         similarity = sims[idx]
+#         if similarity < 0.2:
+#             continue
+#         title = all_df.iloc[idx]["Title"]
+#         source = all_df.iloc[idx].get("Source", "Real")
+#         label = "🔴 Real" if source == "Real" else "🟡 Hypothetical (AI-predicted)"
+#         if source == "Real":
+#             real_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
+#         else:
+#             synth_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
+
+#     real_text = "\n".join(real_bugs[:top_k]) if real_bugs else "None with high similarity."
+#     synth_text = "\n".join(synth_bugs[:top_k]) if synth_bugs else "None generated yet."
+
+#     prompt = f"""
+# *** ROLE: SENIOR QA ARCHITECT & DEFECT PREDICTION SPECIALIST ***
+
+# FEATURE UNDER TEST:
+# "{feature_name}"
+
+# HISTORICAL BUGS (Real incidents from production):
+# {real_text}
+
+# HYPOTHETICAL RISKS (Previously predicted by AI for similar patterns):
+# {synth_text}
+
+# ANALYSIS INSTRUCTIONS:
+# - Use BOTH real and hypothetical bugs to deeply understand failure patterns.
+# - Abstract root causes: concurrency, state, validation, integration, scale, edge cases.
+# - Predict ENTIRELY NEW defects that are not in either list.
+# - Focus on latent risks that appear only at scale, under load, or in future scenarios.
+# - Dont repeat known bugs or trivial variations. They should not be redundant.
+# - Think like a QA architect anticipating future failures.
+# - They should be realistic and relevant to the feature mentioned. Should include various possible failure modes related to the feature.
+# - They should be most frequently occured issues, most well-known potential issues that can occur related to the feature mentioned.
+
+# STRICT RULES:
+# - ❌ NEVER repeat, paraphrase, or slightly reword any bug from above lists
+# - ✅ All predictions must be genuinely new and forward-looking
+
+# DELIVERABLE (JSON array only):
+# [
+#   {{
+#     "Predicted_Bug": "Concise new defect title",
+#     "Root_Cause_Pattern": "Abstract pattern inferred",
+#     "Why_This_Is_New": "Why not in real or hypothetical history",
+#     "Risk_Level": "High | Medium | Low",
+#     "Testing_Technique": "e.g., Stress, Boundary, Chaos Engineering"
+#     "Steps_to_Reproduce": "A detailed, step-by-step sequence of actions required to reproduce the issue, including preconditions, environment setup, test data, user inputs, and any specific conditions under which the issue occurs."
+# ]
+# """
+#     return prompt.strip()
+
 def generate_predictive_risk_prompt(feature_name: str, all_df: pd.DataFrame, all_embeddings: np.ndarray, top_k: int = 5) -> str:
     if all_df.empty or "Title" not in all_df.columns:
         return "No bug data available."
 
     query_vec = embedder.encode([feature_name])
     sims = cosine_similarity(query_vec, all_embeddings)[0]
-    top_indices = sims.argsort()[-top_k*2:][::-1]  # Get more to split real/synthetic
-
-    real_bugs = []
-    synth_bugs = []
-
+    top_indices = sims.argsort()[-top_k*2:][::-1]
+    
+    real_bugs   = []
+    synth_bugs  = []
+    
     for idx in top_indices:
         similarity = sims[idx]
         if similarity < 0.2:
             continue
-        title = all_df.iloc[idx]["Title"]
+        title  = all_df.iloc[idx]["Title"]
         source = all_df.iloc[idx].get("Source", "Real")
-        label = "🔴 Real" if source == "Real" else "🟡 Hypothetical (AI-predicted)"
+        label  = "🔴 Real" if source == "Real" else "🟡 Hypothetical (AI-predicted)"
         if source == "Real":
             real_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
         else:
             synth_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
 
-    real_text = "\n".join(real_bugs[:top_k]) if real_bugs else "None with high similarity."
+    real_text  = "\n".join(real_bugs[:top_k])   if real_bugs  else "None with high similarity."
     synth_text = "\n".join(synth_bugs[:top_k]) if synth_bugs else "None generated yet."
 
-    prompt = f"""
-*** ROLE: SENIOR QA ARCHITECT & DEFECT PREDICTION SPECIALIST ***
+    prompt = f"""You are a senior QA engineer who explains bugs clearly to developers, testers, business analysts and product owners.
 
-FEATURE UNDER TEST:
+FEATURE / USER STORY / CHANGE BEING TESTED:
 "{feature_name}"
 
-HISTORICAL BUGS (Real incidents from production):
+REAL BUGS FROM PRODUCTION (historical issues):
 {real_text}
 
-HYPOTHETICAL RISKS (Previously predicted by AI for similar patterns):
+AI-GENERATED HYPOTHETICAL RISKS (previously predicted similar patterns):
 {synth_text}
 
-ANALYSIS INSTRUCTIONS:
-- Use BOTH real and hypothetical bugs to deeply understand failure patterns.
-- Abstract root causes: concurrency, state, validation, integration, scale, edge cases.
-- Predict ENTIRELY NEW defects that are not in either list.
-- Focus on latent risks that appear only at scale, under load, or in future scenarios.
-- Dont repeat known bugs or trivial variations. They should not be redundant.
-- Think like a QA architect anticipating future failures.
-- They should be realistic and relevant to the feature mentioned. Should include various possible failure modes related to the feature.
-- They should be most frequently occured issues, most well-known potential issues that can occur related to the feature mentioned.
+TASK:
+Predict **entirely new** potential defects that are **not** already listed above.
 
-STRICT RULES:
-- ❌ NEVER repeat, paraphrase, or slightly reword any bug from above lists
-- ✅ All predictions must be genuinely new and forward-looking
+Rules you MUST follow:
+- Use **plain, simple English** — avoid complex technical jargon in most cases
+- Make titles short (8–15 words), clear and understandable for non-technical people
+- EXCEPT for "Technically Complex" bugs — those CAN use proper technical terms
+- Create **diverse** types of bugs — aim to cover several categories below
+- Never repeat or slightly reword any bug already shown above
+- Be realistic — think about what really breaks in web/mobile/backend systems
 
-DELIVERABLE (JSON array only):
-[
-  {{
-    "Predicted_Bug": "Concise new defect title",
-    "Root_Cause_Pattern": "Abstract pattern inferred",
-    "Why_This_Is_New": "Why not in real or hypothetical history",
-    "Risk_Level": "High | Medium | Low",
-    "Testing_Technique": "e.g., Stress, Boundary, Chaos Engineering"
-    "Steps_to_Reproduce": "A detailed, step-by-step sequence of actions required to reproduce the issue, including preconditions, environment setup, test data, user inputs, and any specific conditions under which the issue occurs."
-]
+Required bug categories to cover:
+1. Functionality          – wrong / missing behaviour users notice immediately
+2. Performance            – slow loading, high CPU/memory, timeout, lag
+3. Regression             – something that used to work but now broken after change
+4. Integration            – problem when connecting to payment gateway / API / email / DB / third party
+5. Technically Complex    – race conditions, deadlocks, memory leaks, concurrency issues, caching problems, transaction failures (you can use technical words here)
+6. QA / UAT type          – usability issues, unclear error messages, bad UX, missing validation, look & feel problems, accessibility concerns
+
+For each predicted bug return a JSON object with these exact keys:
+
+{{
+  "Bug_Type":         "Functionality" | "Performance" | "Regression" | "Integration" | "Technically Complex" | "QA and UAT",
+  "Predicted_Bug":    "short clear title — plain English except for Technically Complex",
+  "Root_Cause_Pattern": "1-sentence explanation what usually causes this kind of issue",
+  "Why_This_Is_New":  "short reason why this wasn't in the real or hypothetical list",
+  "Risk_Level":       "High" | "Medium" | "Low",
+  "Recommended_Testing": "e.g. Manual exploratory, API stress test, Boundary value, Regression suite, Accessibility check, ...",
+  "Steps_to_Reproduce": "clear numbered steps so anyone can try to reproduce it"
+}}
+
+Return ONLY a valid JSON **array** of 5–10 such objects — nothing else before or after the [ ... ].
 """
     return prompt.strip()
 
@@ -522,7 +594,7 @@ def get_grok_predictions(prompt: str) -> str:
         response = client.chat.completions.create(
             model=groq_model,
             messages=[
-                {"role": "system", "content": "You are an expert QA architect skilled in predictive defect analysis."},
+                {"role": "system", "content": "You are an expert QA architect skilled in predictive defect analysis. You return **only** valid JSON — no explanation, no markdown, no intro text."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.8,
@@ -1305,63 +1377,203 @@ with tab2:
         
 
 
-# TAB 3 - Now uses hybrid data
+# # TAB 3 - Now uses hybrid data
+# with tab3:
+#     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
+
+#     if "hybrid_df" not in st.session_state:
+#         st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
+#     else:
+#         all_df = st.session_state.hybrid_df
+#         all_embeddings = st.session_state.hybrid_embeddings
+
+#         st.markdown("### Describe the Feature Under Test")
+#         feature_desc = st.text_area("Describe the new feature or change you're testing",
+#                                     height=180,
+#                                     placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
+#                                     label_visibility="collapsed")
+
+#         # top_k = st.slider("**Number of Similar Bugs to Analyze (Real + Synthetic)**", 3, 12, 8)
+#         top_k = 20
+
+#         if st.button("🔍 Predict New Risks with Groq LLaMA (Hybrid)", type="primary"):
+#             if not feature_desc.strip():
+#                 st.warning("Please describe the feature first.")
+#             else:
+#                 prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
+#                 with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
+#                     st.code(prompt)
+
+#                 with st.spinner("🧠 Groq LLaMA analyzing real + hypothetical patterns for deeper prediction..."):
+#                     response = get_grok_predictions(prompt)
+
+#                 st.markdown("### 🤖 Predicted New & Hidden Risks (Beyond Real + Hypothetical)")
+#                 try:
+#                     import json as pyjson
+#                     data = pyjson.loads(response)
+#                     if isinstance(data, list):
+#                         for i, item in enumerate(data, 1):
+#                             st.markdown(f"""
+#                             <div class='card'>
+#                                 <h3 style='color:#00E5FF; margin-top:0'>🛑 Risk #{i}: {item.get('Predicted_Bug', 'Unknown')}</h3>
+#                                 <p><strong>Root Cause Pattern:</strong> {item.get('Root_Cause_Pattern', 'N/A')}</p>
+#                                 <p><strong>Why This Is New:</strong> {item.get('Why_This_Is_New', 'N/A')}</p>
+#                                 <p><strong>Risk Level:</strong> {item.get('Risk_Level', 'N/A')}</p>
+#                                 <p><strong>Testing Technique:</strong> {item.get('Testing_Technique', 'N/A')}</p>
+#                                 <p><strong>Steps to Reproduce:</strong> {item.get('Steps_to_Reproduce', 'N/A')}</p>
+#                             </div>
+#                             """, unsafe_allow_html=True)
+#                     else:
+#                         st.json(data)
+#                 except Exception as e:
+#                     st.error("Failed to parse JSON response.")
+#                     st.markdown(response)
+
+# st.markdown("---")
+# st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
+#             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
+
+#             unsafe_allow_html=True)
 with tab3:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
-
+    
     if "hybrid_df" not in st.session_state:
         st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
     else:
         all_df = st.session_state.hybrid_df
         all_embeddings = st.session_state.hybrid_embeddings
-
+        
         st.markdown("### Describe the Feature Under Test")
-        feature_desc = st.text_area("Describe the new feature or change you're testing",
-                                    height=180,
-                                    placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
-                                    label_visibility="collapsed")
-
-        # top_k = st.slider("**Number of Similar Bugs to Analyze (Real + Synthetic)**", 3, 12, 8)
-        top_k = 20
-
+        feature_desc = st.text_area(
+            "Describe the new feature or change you're testing",
+            height=180,
+            placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
+            label_visibility="collapsed",
+            key="feature_desc_input"
+        )
+        
+        top_k = 20  # fixed for now – controls how many similar bugs are included in context
+        
         if st.button("🔍 Predict New Risks with Groq LLaMA (Hybrid)", type="primary"):
             if not feature_desc.strip():
                 st.warning("Please describe the feature first.")
             else:
-                prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
+                with st.spinner("Preparing context and generating prompt..."):
+                    prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
+                
                 with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
-                    st.code(prompt)
-
+                    st.code(prompt, language="text")
+                
                 with st.spinner("🧠 Groq LLaMA analyzing real + hypothetical patterns for deeper prediction..."):
                     response = get_grok_predictions(prompt)
-
+                
                 st.markdown("### 🤖 Predicted New & Hidden Risks (Beyond Real + Hypothetical)")
+                
                 try:
                     import json as pyjson
                     data = pyjson.loads(response)
-                    if isinstance(data, list):
-                        for i, item in enumerate(data, 1):
+                    
+                    if not isinstance(data, list) or not data:
+                        st.warning("No predictions returned or format was not a list.")
+                        st.json(response)
+                        st.stop()
+                    
+                    # ── Filter controls ────────────────────────────────────────────────
+                    st.markdown("**Show only these bug types:**")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        show_functional     = st.checkbox("Functionality",      value=True, key="flt_func")
+                        show_performance    = st.checkbox("Performance",        value=True, key="flt_perf")
+                    with col2:
+                        show_regression     = st.checkbox("Regression",         value=True, key="flt_regr")
+                        show_integration    = st.checkbox("Integration",        value=True, key="flt_integ")
+                    with col3:
+                        show_tech_complex   = st.checkbox("Technically Complex", value=True, key="flt_tech")
+                        show_qa_uat         = st.checkbox("QA / UAT / Usability", value=True, key="flt_qa")
+                    
+                    # Filter the predictions
+                    filtered = []
+                    for item in data:
+                        bt = item.get("Bug_Type", "").strip()
+                        if (
+                            (show_functional     and bt == "Functionality") or
+                            (show_performance    and bt == "Performance") or
+                            (show_regression     and bt == "Regression") or
+                            (show_integration    and bt == "Integration") or
+                            (show_tech_complex   and bt == "Technically Complex") or
+                            (show_qa_uat         and bt in ["QA and UAT", "QA/UAT", "UAT", "QA and Usability", "Usability"])
+                        ):
+                            filtered.append(item)
+                    
+                    if not filtered:
+                        st.info("No predicted bugs match the selected types.")
+                    else:
+                        st.success(f"Showing {len(filtered)} predicted risks")
+                        
+                        for i, item in enumerate(filtered, 1):
+                            bug_type = item.get("Bug_Type", "—")
+                            
+                            emoji_map = {
+                                "Functionality":       "✅",
+                                "Performance":         "⚡",
+                                "Regression":          "↩️",
+                                "Integration":         "🔗",
+                                "Technically Complex": "🔬",
+                                "QA and UAT":          "👀",
+                                "QA/UAT":              "👀",
+                                "UAT":                 "👀",
+                                "Usability":           "👀",
+                            }
+                            emoji = emoji_map.get(bug_type, "🛑")
+                            
+                            risk_color = {
+                                "High":   "#dc2626",
+                                "Medium": "#d97706",
+                                "Low":    "#16a34a"
+                            }.get(item.get("Risk_Level", ""), "#6b7280")
+                            
                             st.markdown(f"""
-                            <div class='card'>
-                                <h3 style='color:#00E5FF; margin-top:0'>🛑 Risk #{i}: {item.get('Predicted_Bug', 'Unknown')}</h3>
-                                <p><strong>Root Cause Pattern:</strong> {item.get('Root_Cause_Pattern', 'N/A')}</p>
-                                <p><strong>Why This Is New:</strong> {item.get('Why_This_Is_New', 'N/A')}</p>
-                                <p><strong>Risk Level:</strong> {item.get('Risk_Level', 'N/A')}</p>
-                                <p><strong>Testing Technique:</strong> {item.get('Testing_Technique', 'N/A')}</p>
-                                <p><strong>Steps to Reproduce:</strong> {item.get('Steps_to_Reproduce', 'N/A')}</p>
+                            <div style="
+                                padding: 1.2rem;
+                                margin-bottom: 1.2rem;
+                                border-radius: 8px;
+                                border-left: 5px solid {risk_color};
+                                background-color: #f9fafb;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                            ">
+                                <div style="font-size: 1.3rem; font-weight: 600; color: #1f2937; margin-bottom: 0.5rem;">
+                                    {emoji} Risk #{i}: {item.get('Predicted_Bug', '—')}
+                                </div>
+                                <div style="color: #4b5563; font-size: 0.95rem; margin-bottom: 0.8rem;">
+                                    <strong>Type:</strong> {bug_type}  
+                                         
+                                    <strong>Risk:</strong> <span style="color:{risk_color}; font-weight:600;">{item.get('Risk_Level','—')}</span>
+                                </div>
+                                <hr style="border-color: #e5e7eb; margin: 0.8rem 0;">
+                                <div><strong>Root cause pattern:</strong> {item.get('Root_Cause_Pattern','—')}</div>
+                                <div><strong>Why this is new:</strong> {item.get('Why_This_Is_New','—')}</div>
+                                <div style="margin-top: 0.9rem;"><strong>Recommended testing:</strong> {item.get('Recommended_Testing','—')}</div>
+                                <div style="margin-top: 1rem; font-weight: 500;">Steps to reproduce:</div>
+                                <div style="
+                                    background: #f1f5f9;
+                                    padding: 0.9rem;
+                                    border-radius: 6px;
+                                    margin-top: 0.4rem;
+                                    white-space: pre-wrap;
+                                    font-family: monospace;
+                                    font-size: 0.92rem;
+                                    line-height: 1.5;
+                                ">
+                                    {item.get('Steps_to_Reproduce','—').strip()}
+                                </div>
                             </div>
                             """, unsafe_allow_html=True)
-                    else:
-                        st.json(data)
+                
                 except Exception as e:
-                    st.error("Failed to parse JSON response.")
-                    st.markdown(response)
-
-st.markdown("---")
-st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
-            "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
-
-            unsafe_allow_html=True)
+                    st.error(f"Could not parse Groq response → {str(e)}")
+                    with st.expander("Raw response", expanded=False):
+                        st.code(response)
 
 
 
