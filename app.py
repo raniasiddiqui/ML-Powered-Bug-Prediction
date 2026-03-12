@@ -177,7 +177,7 @@ def generate_synthetic_bugs_for_cluster(cluster_df: pd.DataFrame, cluster_id: in
 
     sample_titles = cluster_df['Title'].dropna().head(5).tolist()
 
-      prompt = f"""
+    prompt = f"""
 You are a senior QA architect performing forward-looking defect analysis.
 
 Your task is to generate exactly {count} NEW and DISTINCT bug titles that could realistically occur in the software module: **{focus_feature or 'the relevant system module'}**.
@@ -1741,6 +1741,7 @@ with tab3:
                         "predicted_new_risks.csv",
                         "text/csv"
                     )
+
 
 
 
