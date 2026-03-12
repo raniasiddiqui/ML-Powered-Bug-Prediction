@@ -543,10 +543,13 @@ def generate_predictive_risk_prompt(feature_name: str, all_df: pd.DataFrame, all
     real_text  = "\n".join(real_bugs[:top_k])   if real_bugs  else "None with high similarity."
     synth_text = "\n".join(synth_bugs[:top_k]) if synth_bugs else "None generated yet."
 
-    prompt = f"""You are a senior QA engineer who explains bugs clearly to developers, testers, business analysts and product owners.
+
+    prompt = f"""You are a senior QA engineer who explains software risks clearly to developers, testers, business analysts and product owners.
 
 FEATURE / USER STORY / CHANGE BEING TESTED:
-"{feature_name}"
+{feature_name}
+
+Treat the above as a real system feature specification and carefully reason about how the system might fail.
 
 REAL BUGS FROM PRODUCTION (historical issues):
 {real_text}
@@ -554,40 +557,160 @@ REAL BUGS FROM PRODUCTION (historical issues):
 AI-GENERATED HYPOTHETICAL RISKS (previously predicted similar patterns):
 {synth_text}
 
-TASK:
-Predict **entirely new** potential defects that are **not** already listed above.
+
+STEP 1 — Understand the Feature First
+
+Before predicting bugs, analyze the feature and think about:
+
+• Main user actions involved  
+• Data fields or inputs used  
+• System components involved (UI, API, database, workflow logic, integrations)  
+• State changes or background processes triggered by the feature  
+
+Use this understanding to reason about realistic system failures.
+
+
+STEP 2 — Predict New Bugs
+
+Predict **entirely new defects** that are NOT already listed above.
+
 
 Rules you MUST follow:
-- Use **plain, simple English** — avoid complex technical jargon in most cases
-- Make titles short (8–15 words), clear and understandable for non-technical people
-- EXCEPT for "Technically Complex" bugs — those CAN use proper technical terms
-- Create **diverse** types of bugs — aim to cover several categories below
-- Never repeat or slightly reword any bug already shown above
-- Be realistic — think about what really breaks in web/mobile/backend systems
+
+• Use **plain, simple English** so both technical and non-technical stakeholders can understand  
+• Make bug titles **short and clear (8–15 words)**  
+• EXCEPT for **Technically Complex bugs** — those may include proper engineering terminology  
+• Never repeat or slightly reword bugs from the lists above  
+• Avoid generic template bugs unless strongly justified by the feature  
+• Every bug must describe a **specific failure scenario**
+
+
+Avoid generic bugs such as:
+
+• "Special characters break input"  
+• "Page loads slowly"  
+• "Unclear error message"  
+
+Unless the feature description clearly suggests them.
+
+Each predicted bug must reference a **specific user action, data field, workflow step, or system component** from the feature description.
+
+
+STEP 3 — Think Across System Layers
+
+When predicting bugs, consider failures in different system layers:
+
+• UI Layer – forms, validation, buttons, UX behavior  
+• API Layer – request/response failures, schema mismatch, timeouts  
+• Database Layer – incorrect queries, transactions, duplicate records  
+• Workflow Layer – incorrect status changes, broken approval flows  
+• Integration Layer – third-party APIs, payment gateways, email services  
+• Concurrency / background processing – race conditions, async jobs, retries  
+
+
+Also consider realistic edge cases such as:
+
+• multiple users performing actions simultaneously  
+• duplicate submissions due to slow networks  
+• large datasets or many records  
+• partial failures from external services  
+• invalid workflow states  
+• browser refresh during submission  
+• retry or timeout scenarios  
+
 
 Required bug categories to cover:
-1. Functionality          – wrong / missing behaviour users notice immediately
-2. Performance            – slow loading, high CPU/memory, timeout, lag
-3. Regression             – something that used to work but now broken after change
-4. Integration            – problem when connecting to payment gateway / API / email / DB / third party
-5. Technically Complex    – race conditions, deadlocks, memory leaks, concurrency issues, caching problems, transaction failures (you can use technical words here)
-6. QA / UAT type          – usability issues, unclear error messages, bad UX, missing validation, look & feel problems, accessibility concerns
+
+1. Functionality  
+2. Performance  
+3. Regression  
+4. Integration  
+5. Technically Complex  
+6. QA and UAT
+
+
+STEP 4 — Output Format
 
 For each predicted bug return a JSON object with these exact keys:
 
 {{
-  "Bug_Type":         "Functionality" | "Performance" | "Regression" | "Integration" | "Technically Complex" | "QA and UAT",
-  "Predicted_Bug":    "short clear title — plain English except for Technically Complex",
-  "Root_Cause_Pattern": "1-sentence explanation what usually causes this kind of issue",
-  "Why_This_Is_New":  "short reason why this wasn't in the real or hypothetical list",
-  "Risk_Level":       "High" | "Medium" | "Low",
-  "Recommended_Testing": "e.g. Manual exploratory, API stress test, Boundary value, Regression suite, Accessibility check, ...",
-  "Steps_to_Reproduce": "clear numbered steps so anyone can try to reproduce it"
+  "Bug_Type": "Functionality" | "Performance" | "Regression" | "Integration" | "Technically Complex" | "QA and UAT",
+
+  "Predicted_Bug": "Short clear title describing a specific failure scenario",
+
+  "Root_Cause_Pattern": "One sentence explaining the typical engineering cause",
+
+  "Why_This_Is_New": "Short reason why this bug was not in the real or hypothetical list",
+
+  "Risk_Level": "High" | "Medium" | "Low",
+
+  "Recommended_Testing": "Testing approach such as exploratory testing, API testing, concurrency testing, regression suite, performance testing, accessibility check",
+
+  "Steps_to_Reproduce": "Clear numbered steps referencing specific user actions or system states"
 }}
 
-Return ONLY a valid JSON **array** of 5–10 such objects — nothing else before or after the [ ... ].
+
+STEP 5 — Reproduction Steps Rules
+
+Steps must:
+
+• be **realistic and reproducible**  
+• reference **actual user actions or system behavior**  
+• avoid generic instructions like "go to page"  
+• describe the **exact situation that triggers the failure**
+
+
+Return ONLY a valid JSON array of **5–10 objects**.
+
+Do not include any text before or after the JSON array.
 """
     return prompt.strip()
+
+#     prompt = f"""You are a senior QA engineer who explains bugs clearly to developers, testers, business analysts and product owners.
+
+# FEATURE / USER STORY / CHANGE BEING TESTED:
+# "{feature_name}"
+
+# REAL BUGS FROM PRODUCTION (historical issues):
+# {real_text}
+
+# AI-GENERATED HYPOTHETICAL RISKS (previously predicted similar patterns):
+# {synth_text}
+
+# TASK:
+# Predict **entirely new** potential defects that are **not** already listed above.
+
+# Rules you MUST follow:
+# - Use **plain, simple English** — avoid complex technical jargon in most cases
+# - Make titles short (8–15 words), clear and understandable for non-technical people
+# - EXCEPT for "Technically Complex" bugs — those CAN use proper technical terms
+# - Create **diverse** types of bugs — aim to cover several categories below
+# - Never repeat or slightly reword any bug already shown above
+# - Be realistic — think about what really breaks in web/mobile/backend systems
+
+# Required bug categories to cover:
+# 1. Functionality          – wrong / missing behaviour users notice immediately
+# 2. Performance            – slow loading, high CPU/memory, timeout, lag
+# 3. Regression             – something that used to work but now broken after change
+# 4. Integration            – problem when connecting to payment gateway / API / email / DB / third party
+# 5. Technically Complex    – race conditions, deadlocks, memory leaks, concurrency issues, caching problems, transaction failures (you can use technical words here)
+# 6. QA / UAT type          – usability issues, unclear error messages, bad UX, missing validation, look & feel problems, accessibility concerns
+
+# For each predicted bug return a JSON object with these exact keys:
+
+# {{
+#   "Bug_Type":         "Functionality" | "Performance" | "Regression" | "Integration" | "Technically Complex" | "QA and UAT",
+#   "Predicted_Bug":    "short clear title — plain English except for Technically Complex",
+#   "Root_Cause_Pattern": "1-sentence explanation what usually causes this kind of issue",
+#   "Why_This_Is_New":  "short reason why this wasn't in the real or hypothetical list",
+#   "Risk_Level":       "High" | "Medium" | "Low",
+#   "Recommended_Testing": "e.g. Manual exploratory, API stress test, Boundary value, Regression suite, Accessibility check, ...",
+#   "Steps_to_Reproduce": "clear numbered steps so anyone can try to reproduce it"
+# }}
+
+# Return ONLY a valid JSON **array** of 5–10 such objects — nothing else before or after the [ ... ].
+# """
+#     return prompt.strip()
 
 def get_grok_predictions(prompt: str) -> dict:
     try:
@@ -1520,52 +1643,35 @@ with tab3:
                         st.json(result)
                     st.stop()
 
-                # ── Optional: Bug type filter checkboxes ─────────────────────
-                st.markdown("**Show only these bug types:**")
+                filtered_preds = predictions
         
-                all_types = sorted(set(p.get("Bug_Type", "Unknown") for p in predictions))
-                selected_types = st.multiselect(
-                    "Bug categories",
-                    options=all_types,
-                    default=all_types,
-                    key="bug_type_filter"
-                )
+                for i, item in enumerate(filtered_preds, 1):
+                    bug_type = item.get("Bug_Type", "Unknown")
+                    title   = item.get("Predicted_Bug", "—")
+                    root    = item.get("Root_Cause_Pattern", "—")
+                    why_new = item.get("Why_This_Is_New", "—")
+                    risk    = item.get("Risk_Level", "—")
+                    test    = item.get("Recommended_Testing", item.get("Testing_Technique", "—"))
+                    steps   = item.get("Steps_to_Reproduce", "—")
         
-                filtered_preds = [
-                    p for p in predictions
-                    if p.get("Bug_Type", "Unknown") in selected_types
-                ]
+                    color = {
+                        "High": "#ff5252",
+                        "Medium": "#ffb74d",
+                        "Low": "#81c784"
+                    }.get(risk, "#78909c")
         
-                if not filtered_preds:
-                    st.info("No predictions match the selected bug types.")
-                else:
-                    for i, item in enumerate(filtered_preds, 1):
-                        bug_type = item.get("Bug_Type", "Unknown")
-                        title   = item.get("Predicted_Bug", "—")
-                        root    = item.get("Root_Cause_Pattern", "—")
-                        why_new = item.get("Why_This_Is_New", "—")
-                        risk    = item.get("Risk_Level", "—")
-                        test    = item.get("Recommended_Testing", item.get("Testing_Technique", "—"))
-                        steps   = item.get("Steps_to_Reproduce", "—")
-        
-                        color = {
-                            "High": "#ff5252",
-                            "Medium": "#ffb74d",
-                            "Low": "#81c784"
-                        }.get(risk, "#78909c")
-        
-                        st.markdown(f"""
-                        <div style="border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 6px;">
-                            <h4 style="margin: 0 0 0.6rem 0; color: #424242;">Risk #{i} — {bug_type}</h4>
-                            <div><strong>Predicted Bug:</strong> {title}</div>
-                            <div><strong>Root Cause Pattern:</strong> {root}</div>
-                            <div><strong>Why New:</strong> {why_new}</div>
-                            <div><strong>Risk Level:</strong> <strong style="color:{color}">{risk}</strong></div>
-                            <div><strong>Recommended Testing:</strong> {test}</div>
-                            <div style="margin-top:0.8rem;"><strong>Steps to Reproduce:</strong></div>
-                            <div style="white-space: pre-wrap; font-family: monospace; background:#f0f2f5; padding:0.8rem; border-radius:4px;">{steps}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 6px;">
+                        <h4 style="margin: 0 0 0.6rem 0; color: #424242;">Risk #{i} — {bug_type}</h4>
+                        <div><strong>Predicted Bug:</strong> {title}</div>
+                        <div><strong>Root Cause Pattern:</strong> {root}</div>
+                        <div><strong>Why New:</strong> {why_new}</div>
+                        <div><strong>Risk Level:</strong> <strong style="color:{color}">{risk}</strong></div>
+                        <div><strong>Recommended Testing:</strong> {test}</div>
+                        <div style="margin-top:0.8rem;"><strong>Steps to Reproduce:</strong></div>
+                        <div style="white-space: pre-wrap; font-family: monospace; background:#f0f2f5; padding:0.8rem; border-radius:4px;">{steps}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
         
                 # Optional: download
                 if filtered_preds:
@@ -1577,4 +1683,5 @@ with tab3:
                         "predicted_new_risks.csv",
                         "text/csv"
                     )
+
 
