@@ -177,26 +177,84 @@ def generate_synthetic_bugs_for_cluster(cluster_df: pd.DataFrame, cluster_id: in
 
     sample_titles = cluster_df['Title'].dropna().head(5).tolist()
 
-    prompt = f"""
-You are a senior QA engineer. Generate exactly {count} new plausible bug titles for this cluster.
-Cluster: {training_name} (ID: {cluster_id}), {len(cluster_df)} real bugs
-Common Modules: {', '.join(top_modules)}
-Historical Examples:
+      prompt = f"""
+You are a senior QA architect performing forward-looking defect analysis.
+
+Your task is to generate exactly {count} NEW and DISTINCT bug titles that could realistically occur in the software module: **{focus_feature or 'the relevant system module'}**.
+
+CONTEXT:
+Cluster: {training_name} (ID: {cluster_id})
+Real bugs analyzed in this cluster: {len(cluster_df)}
+Common modules historically observed: {', '.join(top_modules)}
+
+Historical Bugs (REFERENCE ONLY — DO NOT REUSE OR PARAPHRASE):
 """ + "\n".join([f"- {t}" for t in sample_titles]) + f"""
 
-STRICT FOCUS RULES:
-- ONLY generate bugs that are realistic for the module: **{focus_feature or 'any module'}**
+IMPORTANT RULES:
+
+1. Treat the historical bugs ONLY as context about the system behavior.
+2. DO NOT paraphrase, reword, extend, or slightly modify any historical bug listed above.
+3. Generated bugs MUST represent **new failure scenarios that have not already appeared historically**.
+4. Think like a QA engineer anticipating **future defects**, not summarizing past issues.
+5. Bugs should apply to **any generic implementation of the module**, not to a specific project or dataset.
+6. Avoid repeating the same defect category.
+
+BUG VARIETY REQUIREMENT:
+Each bug must represent a DIFFERENT category of defect, such as:
+
+- Functional logic failure
+- Performance degradation
+- Concurrency or race condition
+- Security vulnerability
+- Edge case or validation failure
+- Regression after deployment
+- Integration or API communication issue
+- Data corruption or synchronization issue
+- UI/UX behavioral defect
+- Scalability limitation
+
+STRICT FOCUS:
+- Only generate bugs relevant to the module: **{focus_feature or 'system module'}**
 """
 
     if focus_severity:
-        prompt += f"- Prioritize issues that would most likely be classified as **{focus_severity}** severity\n"
+        prompt += f"\n- The issue should reasonably qualify as **{focus_severity} severity**.\n"
 
     prompt += """
-- Focus on scale, concurrency, edge cases, regression, performance, security, integration, functional failures.
-- Make sure the new bugs are realistic, relevant, and NON-OVERLAPPING with historical examples
-- Avoid trivial variations — aim for interesting, plausible future defects
-- Output ONLY a JSON object: {"titles": ["bug title 1", "bug title 2", ...]}
+
+QUALITY REQUIREMENTS:
+
+- Each bug must describe a **unique failure scenario**.
+- Avoid small variations of the same issue.
+- Do not repeat patterns seen in the historical bugs.
+- Think about issues that may occur under scale, unusual inputs, concurrency, integrations, security misuse, or system upgrades.
+
+OUTPUT FORMAT:
+Return ONLY valid JSON:
+
+{"titles": ["bug title 1", "bug title 2", "bug title 3", "bug title 4"]}
 """
+
+#     prompt = f"""
+# You are a senior QA engineer. Generate exactly {count} new plausible bug titles for this cluster.
+# Cluster: {training_name} (ID: {cluster_id}), {len(cluster_df)} real bugs
+# Common Modules: {', '.join(top_modules)}
+# Historical Examples:
+# """ + "\n".join([f"- {t}" for t in sample_titles]) + f"""
+
+# STRICT FOCUS RULES:
+# - ONLY generate bugs that are realistic for the module: **{focus_feature or 'any module'}**
+# """
+
+#     if focus_severity:
+#         prompt += f"- Prioritize issues that would most likely be classified as **{focus_severity}** severity\n"
+
+#     prompt += """
+# - Focus on scale, concurrency, edge cases, regression, performance, security, integration, functional failures.
+# - Make sure the new bugs are realistic, relevant, and NON-OVERLAPPING with historical examples
+# - Avoid trivial variations — aim for interesting, plausible future defects
+# - Output ONLY a JSON object: {"titles": ["bug title 1", "bug title 2", ...]}
+# """
 
     try:
         response = client.chat.completions.create(
@@ -621,12 +679,12 @@ Also consider realistic edge cases such as:
 
 Required bug categories to cover:
 
-1. Functionality  
+1. Functionality - 5-6 bugs  
 2. Performance  
 3. Regression  
-4. Integration  
-5. Technically Complex  
-6. QA and UAT
+4. Integration  3-4 bugs
+5. Technically Complex - 3-4 bugs
+6. QA and UAT - 3-4 bugs
 
 
 STEP 4 — Output Format
@@ -660,7 +718,7 @@ Steps must:
 • describe the **exact situation that triggers the failure**
 
 
-Return ONLY a valid JSON array of **5–10 objects**.
+Return ONLY a valid JSON array of **20-25 objects**.
 
 Do not include any text before or after the JSON array.
 """
@@ -1683,5 +1741,6 @@ with tab3:
                         "predicted_new_risks.csv",
                         "text/csv"
                     )
+
 
 
