@@ -1219,15 +1219,15 @@ with tab2:
         df_to_use = st.session_state.bug_data_combined
         name = "Combined"
 
-    st.markdown(
-        f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
-        f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
-        unsafe_allow_html=True
-    )
+    # st.markdown(
+    #     f"<div style='text-align:center; font-size:1.3rem; color:#00E5FF; margin:1rem 0'>"
+    #     f"**Training on:** {name} → {len(df_to_use):,} real bugs</div>",
+    #     unsafe_allow_html=True
+    # )
 
     st.markdown("### Bug Learning and Prediction")
     st.markdown(
-        "Click on the button below to use the **Historical Bug Data from Azure Devops** and train the model on data. "
+        "Click on the button below to use the **Historical Bug Data from Azure Devops** and learn the model on data. "
         "This system analyzes all the past issues observed from the bugs and generates all possible likely bugs that"
         "could appear again based on **Historical Patterns**. "
     )
@@ -1316,7 +1316,7 @@ with tab2:
     #   HEATMAP + BUG DETAILS FILTER
     # ────────────────────────────────────────────────────────────────
     if ("Custom_FeatureorModule" in df_to_use.columns or "Custom_CategoryandModules" in df_to_use.columns) and "Severity" in df_to_use.columns:
-        st.markdown("#### Bug Heatmap by Feature & Severity")
+        st.markdown("#### Historical Bugs Heatmap (Feature & Severity)")
         st.markdown(
             "<div style='font-size:14px; color:#444; margin-bottom:10px;'>"
             "This heatmap shows a detailed distribution of <b>historical bugs fetched from Azure DevOps</b>, "
@@ -1522,8 +1522,8 @@ with tab2:
                                 {
                                     "Title": t,
                                     "Feature": selected_feature,
-                                    "Severity": selected_severity,
-                                    "GeneratedAt": now_str
+                                    "Severity": selected_severity
+                                    # "GeneratedAt": now_str
                                 }
                                 for t in new_titles
                             ]
@@ -1533,7 +1533,7 @@ with tab2:
                             st.success(f"Added **{len(new_titles)} focused AI-Predicted bugs** for **{selected_feature}** ({selected_severity})")
                             st.markdown(f"**Just generated ({len(new_titles)} bugs):**")
                             st.dataframe(
-                                pd.DataFrame(new_entries)[["Title", "Feature", "Severity", "GeneratedAt"]],
+                                pd.DataFrame(new_entries)[["Title", "Feature", "Severity"]],
                                 use_container_width=True,
                                 hide_index=True
                             )
@@ -1575,11 +1575,9 @@ with tab2:
         focused_history_df = pd.DataFrame(st.session_state.focused_synthetic_latest)
 
         # Optional: group by feature + severity for better readability
-        st.dataframe(
-            focused_history_df[["Title", "Feature", "Severity", "GeneratedAt"]]
-            .sort_values("GeneratedAt", ascending=False),
-            use_container_width=True,
-            hide_index=True
+        st.dataframe(focused_history_df[["Title", "Feature", "Severity"]],
+        use_container_width=True,
+        hide_index=True
         )
 
         # Download button for focused bugs
@@ -1741,6 +1739,7 @@ with tab3:
                         "predicted_new_risks.csv",
                         "text/csv"
                     )
+
 
 
 
