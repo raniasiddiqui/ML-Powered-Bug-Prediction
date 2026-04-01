@@ -1544,26 +1544,33 @@ with tab3:
                 
 
                 # --- Bug Type Filter UI ---
+                # Initialize session state once
+                if "bug_filter" not in st.session_state:
+                    st.session_state.bug_filter = {
+                        "Functionality": True,
+                        "Performance": True,
+                        "Regression": True,
+                        "Integration": True,
+                        "Technically Complex": True,
+                        "QA and UAT": True
+                    }
+                
                 st.markdown("### 🔎 Filter by Bug Type")
                 
-                bug_types = [
-                    "Functionality",
-                    "Performance",
-                    "Regression",
-                    "Integration",
-                    "Technically Complex",
-                    "QA and UAT"
-                ]
-                
+                cols = st.columns(3)
                 selected_types = []
                 
-                cols = st.columns(3)  # layout in 3 columns for better UI
-                for i, bug in enumerate(bug_types):
+                for i, bug in enumerate(st.session_state.bug_filter.keys()):
                     with cols[i % 3]:
-                        if st.checkbox(bug, value=True):  # default = all selected
-                            selected_types.append(bug)
+                        st.session_state.bug_filter[bug] = st.checkbox(
+                            bug,
+                            value=st.session_state.bug_filter[bug],
+                            key=f"checkbox_{bug}"
+                        )
                 
-                # --- Apply filtering ---
+                # Apply filter
+                selected_types = [k for k, v in st.session_state.bug_filter.items() if v]
+                
                 filtered_preds = [
                     p for p in predictions
                     if p.get("Bug_Type") in selected_types
