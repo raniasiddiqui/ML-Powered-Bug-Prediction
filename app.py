@@ -1389,7 +1389,7 @@ with tab2:
                             focus_severity=selected_severity
                         )
 
-                        if new_titles:
+                        if new_bugs:
                             focused_df = pd.DataFrame([{
                             "Title": bug["Title"],
                             "Steps_to_Reproduce": bug.get("Steps_to_Reproduce", ""),
@@ -1430,8 +1430,8 @@ with tab2:
                             st.session_state.focused_synthetic_latest.extend(new_entries)
 
                             # Show immediate result
-                            st.success(f"Added **{len(new_titles)} focused AI-Predicted bugs** for **{selected_feature}** ({selected_severity})")
-                            st.markdown(f"**Just generated ({len(new_titles)} bugs):**")
+                            st.success(f"Added **{len(new_bugs)} focused AI-Predicted bugs** for **{selected_feature}** ({selected_severity})")
+                            st.markdown(f"**Just generated ({len(new_bugs)} bugs):**")
                             st.dataframe(
                                 pd.DataFrame(new_entries)[["Title", "Steps_to_Reproduce", "Feature", "Severity"]],
                                 use_container_width=True,
