@@ -1390,22 +1390,14 @@ with tab2:
                         )
 
                         if new_titles:
-                            
-                        #     focused_df = pd.DataFrame({
-                        #         "Title": new_titles,
-                        #         "Source": "AI-Focused-Filter",
-                        #         "BugCluster": -2,
-                        #         feature_col: selected_feature,
-                        #         "Severity": selected_severity,
-                        #     })
-                                focused_df = pd.DataFrame([{
-                                "Title": bug["Title"],
-                                "Steps_to_Reproduce": bug.get("Steps_to_Reproduce", ""),
-                                "Source": "AI-Focused-Filter",
-                                "BugCluster": -2,
-                                feature_col: selected_feature,
-                                "Severity": selected_severity,
-                            } for bug in new_bugs])
+                            focused_df = pd.DataFrame([{
+                            "Title": bug["Title"],
+                            "Steps_to_Reproduce": bug.get("Steps_to_Reproduce", ""),
+                            "Source": "AI-Focused-Filter",
+                            "BugCluster": -2,
+                            feature_col: selected_feature,
+                            "Severity": selected_severity,
+                        } for bug in new_bugs])
                             # Append to global hybrid
                             if "hybrid_df" in st.session_state and "hybrid_embeddings" in st.session_state:
                                 titles_only = [bug["Title"] for bug in new_bugs]
