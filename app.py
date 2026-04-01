@@ -1498,65 +1498,6 @@ with tab2:
         st.info("No focused AI-Predicted bugs generated yet. Select a feature + severity filter and use the button above.")
 
         
-
-
-# # TAB 3 - Now uses hybrid data
-# with tab3:
-#     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
-
-#     if "hybrid_df" not in st.session_state:
-#         st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
-#     else:
-#         all_df = st.session_state.hybrid_df
-#         all_embeddings = st.session_state.hybrid_embeddings
-
-#         st.markdown("### Describe the Feature Under Test")
-#         feature_desc = st.text_area("Describe the new feature or change you're testing",
-#                                     height=180,
-#                                     placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
-#                                     label_visibility="collapsed")
-
-#         # top_k = st.slider("**Number of Similar Bugs to Analyze (Real + Synthetic)**", 3, 12, 8)
-#         top_k = 20
-
-#         if st.button("🔍 Predict New Risks with Groq LLaMA (Hybrid)", type="primary"):
-#             if not feature_desc.strip():
-#                 st.warning("Please describe the feature first.")
-#             else:
-#                 prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
-#                 with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
-#                     st.code(prompt)
-
-#                 with st.spinner("🧠 Groq LLaMA analyzing real + hypothetical patterns for deeper prediction..."):
-#                     response = get_grok_predictions(prompt)
-
-#                 st.markdown("### 🤖 Predicted New & Hidden Risks (Beyond Real + Hypothetical)")
-#                 try:
-#                     import json as pyjson
-#                     data = pyjson.loads(response)
-#                     if isinstance(data, list):
-#                         for i, item in enumerate(data, 1):
-#                             st.markdown(f"""
-#                             <div class='card'>
-#                                 <h3 style='color:#00E5FF; margin-top:0'>🛑 Risk #{i}: {item.get('Predicted_Bug', 'Unknown')}</h3>
-#                                 <p><strong>Root Cause Pattern:</strong> {item.get('Root_Cause_Pattern', 'N/A')}</p>
-#                                 <p><strong>Why This Is New:</strong> {item.get('Why_This_Is_New', 'N/A')}</p>
-#                                 <p><strong>Risk Level:</strong> {item.get('Risk_Level', 'N/A')}</p>
-#                                 <p><strong>Testing Technique:</strong> {item.get('Testing_Technique', 'N/A')}</p>
-#                                 <p><strong>Steps to Reproduce:</strong> {item.get('Steps_to_Reproduce', 'N/A')}</p>
-#                             </div>
-#                             """, unsafe_allow_html=True)
-#                     else:
-#                         st.json(data)
-#                 except Exception as e:
-#                     st.error("Failed to parse JSON response.")
-#                     st.markdown(response)
-
-# st.markdown("---")
-# st.markdown("<p style='text-align:center; color:#88ffff; font-size:1.1rem'>"
-#             "Next-Gen Bug Intelligence • Hybrid Real + Synthetic Risk Modeling • Powered by Groq LLaMA</p>", 
-
-#             unsafe_allow_html=True)
 with tab3:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
     
@@ -1600,6 +1541,33 @@ with tab3:
                     st.stop()
 
                 filtered_preds = predictions
+                
+
+                # --- Bug Type Filter UI ---
+                st.markdown("### 🔎 Filter by Bug Type")
+                
+                bug_types = [
+                    "Functionality",
+                    "Performance",
+                    "Regression",
+                    "Integration",
+                    "Technically Complex",
+                    "QA and UAT"
+                ]
+                
+                selected_types = []
+                
+                cols = st.columns(3)  # layout in 3 columns for better UI
+                for i, bug in enumerate(bug_types):
+                    with cols[i % 3]:
+                        if st.checkbox(bug, value=True):  # default = all selected
+                            selected_types.append(bug)
+                
+                # --- Apply filtering ---
+                filtered_preds = [
+                    p for p in predictions
+                    if p.get("Bug_Type") in selected_types
+                ]
         
                 for i, item in enumerate(filtered_preds, 1):
                     bug_type = item.get("Bug_Type", "Unknown")
