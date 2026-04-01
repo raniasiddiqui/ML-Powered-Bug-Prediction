@@ -220,41 +220,55 @@ STRICT FOCUS:
     if focus_severity:
         prompt += f"\n- The issue should reasonably qualify as **{focus_severity} severity**.\n"
 
-    prompt += """
+    if focus_feature:
+        prompt += """
+    
+    ADDITIONAL REQUIREMENT:
+    - Along with each bug title, also generate "Steps_to_Reproduce"
+    - Steps should be simple, numbered, and easy to follow (non-technical language)
+    - Steps must clearly describe user actions or system conditions
 
-QUALITY REQUIREMENTS:
+    QUALITY REQUIREMENTS:
 
-- Each bug must describe a **unique failure scenario**.
-- Avoid small variations of the same issue.
-- Do not repeat patterns seen in the historical bugs.
-- Think about issues that may occur under scale, unusual inputs, concurrency, integrations, security misuse, or system upgrades.
+     - Each bug must describe a **unique failure scenario**.
+     - Avoid small variations of the same issue.
+     - Do not repeat patterns seen in the historical bugs.
+     - Think about issues that may occur under scale, unusual inputs, concurrency, integrations, security misuse, or system upgrades.
 
-OUTPUT FORMAT:
-Return ONLY valid JSON:
+    
+    
+    OUTPUT FORMAT:
+    Return ONLY valid JSON:
+    
+    {
+      "bugs": [
+        {
+          "Title": "bug title 1",
+          "Steps_to_Reproduce": "1. Step one\\n2. Step two\\n3. Step three"
+        },
+        {
+          "Title": "bug title 2",
+          "Steps_to_Reproduce": "1. Step one\\n2. Step two\\n3. Step three"
+        }
+      ]
+    }
+    """
+    else:
+        prompt += """
 
-{"titles": ["bug title 1", "bug title 2", "bug title 3", "bug title 4"]}
-"""
+         QUALITY REQUIREMENTS:
 
-#     prompt = f"""
-# You are a senior QA engineer. Generate exactly {count} new plausible bug titles for this cluster.
-# Cluster: {training_name} (ID: {cluster_id}), {len(cluster_df)} real bugs
-# Common Modules: {', '.join(top_modules)}
-# Historical Examples:
-# """ + "\n".join([f"- {t}" for t in sample_titles]) + f"""
+     - Each bug must describe a **unique failure scenario**.
+     - Avoid small variations of the same issue.
+     - Do not repeat patterns seen in the historical bugs.
+     - Think about issues that may occur under scale, unusual inputs, concurrency, integrations, security misuse, or system upgrades.
+    
+        OUTPUT FORMAT:
+        Return ONLY valid JSON:
+        
+        {"titles": ["bug title 1", "bug title 2", "bug title 3", "bug title 4"]}
+    """
 
-# STRICT FOCUS RULES:
-# - ONLY generate bugs that are realistic for the module: **{focus_feature or 'any module'}**
-# """
-
-#     if focus_severity:
-#         prompt += f"- Prioritize issues that would most likely be classified as **{focus_severity}** severity\n"
-
-#     prompt += """
-# - Focus on scale, concurrency, edge cases, regression, performance, security, integration, functional failures.
-# - Make sure the new bugs are realistic, relevant, and NON-OVERLAPPING with historical examples
-# - Avoid trivial variations — aim for interesting, plausible future defects
-# - Output ONLY a JSON object: {"titles": ["bug title 1", "bug title 2", ...]}
-# """
 
     try:
         response = client.chat.completions.create(
@@ -276,31 +290,83 @@ Return ONLY valid JSON:
         parsed = pyjson.loads(clean_content)
 
         # Handle different potential formats (List vs Dict)
-        if isinstance(parsed, dict):
-            # Look for common keys if 'titles' isn't used
-            titles = parsed.get("titles", parsed.get("bugs", list(parsed.values())[0]))
-        else:
-            titles = parsed
+        # if isinstance(parsed, dict):
+        #     # Look for common keys if 'titles' isn't used
+        #     titles = parsed.get("titles", parsed.get("bugs", list(parsed.values())[0]))
+        # else:
+        #     titles = parsed
 
-        # Validate we actually got strings
-        if not isinstance(titles, list):
-            raise ValueError("Parsed output is not a list")
+        # # Validate we actually got strings
+        # if not isinstance(titles, list):
+        #     raise ValueError("Parsed output is not a list")
             
-        final_titles = [str(t).strip() for t in titles if t]
+        # final_titles = [str(t).strip() for t in titles if t]
 
+        # ✅ Handle BOTH modes properly
+        if focus_feature:
+            # Expecting: {"bugs": [{Title, Steps_to_Reproduce}]}
+            if isinstance(parsed, dict):
+                bugs = parsed.get("bugs", [])
+            else:
+                bugs = parsed
+        
+            if not isinstance(bugs, list):
+                raise ValueError("Parsed output is not a list of bugs")
+        
+            # Ensure correct structure
+            final_titles = []
+            for bug in bugs:
+                if isinstance(bug, dict):
+                    final_titles.append({
+                        "Title": str(bug.get("Title", "")).strip(),
+                        "Steps_to_Reproduce": str(bug.get("Steps_to_Reproduce", "")).strip()
+                    })
+        
+        else:
+            # Expecting: {"titles": [...]}
+            if isinstance(parsed, dict):
+                titles = parsed.get("titles", list(parsed.values())[0])
+            else:
+                titles = parsed
+        
+            if not isinstance(titles, list):
+                raise ValueError("Parsed output is not a list")
+        
+            final_titles = [str(t).strip() for t in titles if t]
     except Exception as e:
         import streamlit as st # Assuming Streamlit based on your snippet
         st.warning(f"Cluster {cluster_id}: LLM parsing failed. Using fallbacks. Error: {str(e)[:50]}")
         
         # 4. Context-Aware Fallbacks
         # Instead of generic text, use the module names to make the fallback look real
+        # primary_mod = top_modules[0] if top_modules else "System"
+        # final_titles = [
+        #     f"Unexpected {primary_mod} failure during high-concurrency stress test",
+        #     f"Memory leak detected in {primary_mod} when processing large datasets",
+        #     f"Intermittent race condition in {primary_mod} state synchronization",
+        #     f"Boundary condition error in {primary_mod} validation logic"
+        # ]
+
         primary_mod = top_modules[0] if top_modules else "System"
-        final_titles = [
-            f"Unexpected {primary_mod} failure during high-concurrency stress test",
-            f"Memory leak detected in {primary_mod} when processing large datasets",
-            f"Intermittent race condition in {primary_mod} state synchronization",
-            f"Boundary condition error in {primary_mod} validation logic"
-        ]
+
+        if focus_feature:
+            final_titles = [
+                {
+                    "Title": f"User is able to perform invalid action in {primary_mod} under heavy usage",
+                    "Steps_to_Reproduce": "1. Open the module\n2. Perform repeated actions quickly\n3. Observe unexpected behavior"
+                },
+                {
+                    "Title": f"Data mismatch occurs in {primary_mod} after multiple updates",
+                    "Steps_to_Reproduce": "1. Update the same record multiple times\n2. Refresh the page\n3. Data appears inconsistent"
+                }
+            ]
+        else:
+            final_titles = [
+                f"Unexpected {primary_mod} failure during high-concurrency stress test",
+                f"Memory leak detected in {primary_mod} when processing large datasets",
+                f"Intermittent race condition in {primary_mod} state synchronization",
+                f"Boundary condition error in {primary_mod} validation logic"
+            ]
 
     return final_titles[:count]  # Use the requested count
 
@@ -507,73 +573,6 @@ def prepare_embeddings(_df: pd.DataFrame):
     titles = _df["Title"].fillna("No title").tolist()
     return embedder.encode(titles, show_progress_bar=False)
 
-# ================================
-# UPDATED PREDICTION PROMPT (Hybrid)
-# ================================
-# def generate_predictive_risk_prompt(feature_name: str, all_df: pd.DataFrame, all_embeddings: np.ndarray, top_k: int = 5) -> str:
-#     if all_df.empty or "Title" not in all_df.columns:
-#         return "No bug data available."
-
-#     query_vec = embedder.encode([feature_name])
-#     sims = cosine_similarity(query_vec, all_embeddings)[0]
-#     top_indices = sims.argsort()[-top_k*2:][::-1]  # Get more to split real/synthetic
-
-#     real_bugs = []
-#     synth_bugs = []
-
-#     for idx in top_indices:
-#         similarity = sims[idx]
-#         if similarity < 0.2:
-#             continue
-#         title = all_df.iloc[idx]["Title"]
-#         source = all_df.iloc[idx].get("Source", "Real")
-#         label = "🔴 Real" if source == "Real" else "🟡 Hypothetical (AI-predicted)"
-#         if source == "Real":
-#             real_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
-#         else:
-#             synth_bugs.append(f"- {title} (sim: {similarity:.2f}) {label}")
-
-#     real_text = "\n".join(real_bugs[:top_k]) if real_bugs else "None with high similarity."
-#     synth_text = "\n".join(synth_bugs[:top_k]) if synth_bugs else "None generated yet."
-
-#     prompt = f"""
-# *** ROLE: SENIOR QA ARCHITECT & DEFECT PREDICTION SPECIALIST ***
-
-# FEATURE UNDER TEST:
-# "{feature_name}"
-
-# HISTORICAL BUGS (Real incidents from production):
-# {real_text}
-
-# HYPOTHETICAL RISKS (Previously predicted by AI for similar patterns):
-# {synth_text}
-
-# ANALYSIS INSTRUCTIONS:
-# - Use BOTH real and hypothetical bugs to deeply understand failure patterns.
-# - Abstract root causes: concurrency, state, validation, integration, scale, edge cases.
-# - Predict ENTIRELY NEW defects that are not in either list.
-# - Focus on latent risks that appear only at scale, under load, or in future scenarios.
-# - Dont repeat known bugs or trivial variations. They should not be redundant.
-# - Think like a QA architect anticipating future failures.
-# - They should be realistic and relevant to the feature mentioned. Should include various possible failure modes related to the feature.
-# - They should be most frequently occured issues, most well-known potential issues that can occur related to the feature mentioned.
-
-# STRICT RULES:
-# - ❌ NEVER repeat, paraphrase, or slightly reword any bug from above lists
-# - ✅ All predictions must be genuinely new and forward-looking
-
-# DELIVERABLE (JSON array only):
-# [
-#   {{
-#     "Predicted_Bug": "Concise new defect title",
-#     "Root_Cause_Pattern": "Abstract pattern inferred",
-#     "Why_This_Is_New": "Why not in real or hypothetical history",
-#     "Risk_Level": "High | Medium | Low",
-#     "Testing_Technique": "e.g., Stress, Boundary, Chaos Engineering"
-#     "Steps_to_Reproduce": "A detailed, step-by-step sequence of actions required to reproduce the issue, including preconditions, environment setup, test data, user inputs, and any specific conditions under which the issue occurs."
-# ]
-# """
-#     return prompt.strip()
 
 def generate_predictive_risk_prompt(feature_name: str, all_df: pd.DataFrame, all_embeddings: np.ndarray, top_k: int = 5) -> str:
     if all_df.empty or "Title" not in all_df.columns:
@@ -724,51 +723,6 @@ Do not include any text before or after the JSON array.
 """
     return prompt.strip()
 
-#     prompt = f"""You are a senior QA engineer who explains bugs clearly to developers, testers, business analysts and product owners.
-
-# FEATURE / USER STORY / CHANGE BEING TESTED:
-# "{feature_name}"
-
-# REAL BUGS FROM PRODUCTION (historical issues):
-# {real_text}
-
-# AI-GENERATED HYPOTHETICAL RISKS (previously predicted similar patterns):
-# {synth_text}
-
-# TASK:
-# Predict **entirely new** potential defects that are **not** already listed above.
-
-# Rules you MUST follow:
-# - Use **plain, simple English** — avoid complex technical jargon in most cases
-# - Make titles short (8–15 words), clear and understandable for non-technical people
-# - EXCEPT for "Technically Complex" bugs — those CAN use proper technical terms
-# - Create **diverse** types of bugs — aim to cover several categories below
-# - Never repeat or slightly reword any bug already shown above
-# - Be realistic — think about what really breaks in web/mobile/backend systems
-
-# Required bug categories to cover:
-# 1. Functionality          – wrong / missing behaviour users notice immediately
-# 2. Performance            – slow loading, high CPU/memory, timeout, lag
-# 3. Regression             – something that used to work but now broken after change
-# 4. Integration            – problem when connecting to payment gateway / API / email / DB / third party
-# 5. Technically Complex    – race conditions, deadlocks, memory leaks, concurrency issues, caching problems, transaction failures (you can use technical words here)
-# 6. QA / UAT type          – usability issues, unclear error messages, bad UX, missing validation, look & feel problems, accessibility concerns
-
-# For each predicted bug return a JSON object with these exact keys:
-
-# {{
-#   "Bug_Type":         "Functionality" | "Performance" | "Regression" | "Integration" | "Technically Complex" | "QA and UAT",
-#   "Predicted_Bug":    "short clear title — plain English except for Technically Complex",
-#   "Root_Cause_Pattern": "1-sentence explanation what usually causes this kind of issue",
-#   "Why_This_Is_New":  "short reason why this wasn't in the real or hypothetical list",
-#   "Risk_Level":       "High" | "Medium" | "Low",
-#   "Recommended_Testing": "e.g. Manual exploratory, API stress test, Boundary value, Regression suite, Accessibility check, ...",
-#   "Steps_to_Reproduce": "clear numbered steps so anyone can try to reproduce it"
-# }}
-
-# Return ONLY a valid JSON **array** of 5–10 such objects — nothing else before or after the [ ... ].
-# """
-#     return prompt.strip()
 
 def get_grok_predictions(prompt: str) -> dict:
     try:
@@ -1021,58 +975,6 @@ button[kind="primary"]:active {
 
 tab1, tab2, tab3 = st.tabs(["📥 Fetch & Filter", "🧠 Bugs Learning", "🔮 Predict Potential Bugs"])
 
-# TAB 1 - Unchanged
-# with tab1:
-#     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
-    
-#     col1, col2 = st.columns([3, 1])
-#     with col1:
-#         selected_projects = st.multiselect("**Select Project(s)**", PROJECTS, default=PROJECTS)
-#     with col2:
-#         data_mode = st.radio("**Project Selection Mode**", ["Multiple", "Single"], horizontal=True)
-
-#     if st.button("🚀 Fetch Bugs", key="fetch", type="primary"):
-#         if not selected_projects:
-#             st.warning("Please select at least one project.")
-#         else:
-#             progress = st.progress(0)
-#             results = {}
-#             with ThreadPoolExecutor() as executor:
-#                 futures = {executor.submit(fetch_bugs, p): p for p in selected_projects}
-#                 for i, future in enumerate(as_completed(futures), 1):
-#                     p, df = future.result()
-#                     results[p] = df
-#                     progress.progress(i / len(selected_projects))
-
-#             processed = {}
-#             all_dfs = []
-#             for p, df in results.items():
-#                 if df is not None and not df.empty:
-#                     clean_df = preprocess_df(df)
-#                     processed[p] = clean_df
-#                     all_dfs.append(clean_df.assign(Project=p))
-
-#                     with st.expander(f"**{p}** – {len(clean_df):,} bugs", expanded=False):
-                        
-#                             display_cols = ["WorkItemId", "Title", "Severity", "State"]
-#                             if "WorkItemId" in clean_df.columns:
-#                                 display_df = clean_df[display_cols].head(10).copy()
-#                                 st.dataframe(display_df, width='stretch', hide_index=True)
-#                             else:
-#                                 st.dataframe(clean_df[["Title", "Severity", "State"]].head(10), width='stretch')
-#                             csv = clean_df.to_csv(index=False).encode()
-#                             st.download_button(f"📥 Download {p}", csv, f"{p}_bugs.csv", key=f"dl_{p}")
-
-#             if all_dfs:
-#                 combined_df = pd.concat(all_dfs, ignore_index=True)
-#                 st.session_state.bug_data_combined = combined_df
-#                 st.session_state.bug_data_individual = processed
-#                 st.session_state.full_df = combined_df  # real only for fallback
-#                 st.session_state.real_embeddings = prepare_embeddings(combined_df)
-#                 st.success(f"✅ Successfully loaded **{len(combined_df):,}** total real bugs!")
-#             else:
-#                 st.error("No data fetched.")
-
 with tab1:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Fetch Bug Data from Azure DevOps</h2></div>", unsafe_allow_html=True)
     # ────────────────────────────────────────────────
@@ -1193,9 +1095,6 @@ with tab1:
                 # ─────────────────────────────
     # Re-render previously fetched data after rerun
     # ─────────────────────────────
-           
-
-
 
 
 ### heheh
@@ -1481,7 +1380,7 @@ with tab2:
                     with st.spinner("Generating focused AI-Predicted bugs..."):
                         filtered_real = st.session_state.bug_details_df.copy()
 
-                        new_titles = generate_synthetic_bugs_for_cluster(
+                        new_bugs = generate_synthetic_bugs_for_cluster(
                             cluster_df=filtered_real,
                             cluster_id=997,
                             training_name=f"Focused_{selected_feature}_{selected_severity}",
@@ -1491,17 +1390,26 @@ with tab2:
                         )
 
                         if new_titles:
-                            focused_df = pd.DataFrame({
-                                "Title": new_titles,
+                            
+                        #     focused_df = pd.DataFrame({
+                        #         "Title": new_titles,
+                        #         "Source": "AI-Focused-Filter",
+                        #         "BugCluster": -2,
+                        #         feature_col: selected_feature,
+                        #         "Severity": selected_severity,
+                        #     })
+                                focused_df = pd.DataFrame([{
+                                "Title": bug["Title"],
+                                "Steps_to_Reproduce": bug.get("Steps_to_Reproduce", ""),
                                 "Source": "AI-Focused-Filter",
                                 "BugCluster": -2,
                                 feature_col: selected_feature,
                                 "Severity": selected_severity,
-                            })
-
+                            } for bug in new_bugs])
                             # Append to global hybrid
                             if "hybrid_df" in st.session_state and "hybrid_embeddings" in st.session_state:
-                                new_emb = embedder.encode(new_titles, show_progress_bar=False)
+                                titles_only = [bug["Title"] for bug in new_bugs]
+                                new_emb = embedder.encode(titles_only, show_progress_bar=False)
 
                                 st.session_state.hybrid_df = pd.concat([
                                     st.session_state.hybrid_df,
@@ -1520,12 +1428,12 @@ with tab2:
                             now_str = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
                             new_entries = [
                                 {
-                                    "Title": t,
+                                    "Title": bug["Title"],
+                                    "Steps_to_Reproduce": bug.get("Steps_to_Reproduce", ""),
                                     "Feature": selected_feature,
                                     "Severity": selected_severity
-                                    # "GeneratedAt": now_str
                                 }
-                                for t in new_titles
+                                for bug in new_bugs
                             ]
                             st.session_state.focused_synthetic_latest.extend(new_entries)
 
@@ -1533,7 +1441,7 @@ with tab2:
                             st.success(f"Added **{len(new_titles)} focused AI-Predicted bugs** for **{selected_feature}** ({selected_severity})")
                             st.markdown(f"**Just generated ({len(new_titles)} bugs):**")
                             st.dataframe(
-                                pd.DataFrame(new_entries)[["Title", "Feature", "Severity"]],
+                                pd.DataFrame(new_entries)[["Title", "Steps_to_Reproduce", "Feature", "Severity"]],
                                 use_container_width=True,
                                 hide_index=True
                             )
@@ -1575,7 +1483,7 @@ with tab2:
         focused_history_df = pd.DataFrame(st.session_state.focused_synthetic_latest)
 
         # Optional: group by feature + severity for better readability
-        st.dataframe(focused_history_df[["Title", "Feature", "Severity"]],
+        st.dataframe(focused_history_df[["Title", "Steps_to_Reproduce", "Feature", "Severity"]],
         use_container_width=True,
         hide_index=True
         )
