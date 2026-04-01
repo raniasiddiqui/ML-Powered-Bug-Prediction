@@ -275,7 +275,7 @@ STRICT FOCUS:
             model=groq_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.8, 
-            max_tokens=400,
+            max_tokens=1200,
             response_format={"type": "json_object"}
         )
         
