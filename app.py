@@ -203,6 +203,7 @@ BUG VARIETY REQUIREMENT:
 Each bug must represent a DIFFERENT category of defect, such as:
 
 - Functional logic failure
+- Logical Workflows failure
 - Performance degradation
 - Concurrency or race condition
 - Security vulnerability
@@ -231,9 +232,25 @@ STRICT FOCUS:
     QUALITY REQUIREMENTS:
 
      - Each bug must describe a **unique failure scenario**.
+     - The bugs mentioned shouldnot include very technical wordings. The phrasing should be in words that are easily understandable by non-technical people, but they should still clearly convey the full context of the issue.
      - Avoid small variations of the same issue.
      - Do not repeat patterns seen in the historical bugs.
      - Think about issues that may occur under scale, unusual inputs, concurrency, integrations, security misuse, or system upgrades.
+     IMPORTANT:
+     -When using general terms such as 
+     functional logic failure, performance degradation, concurrency or race condition, Security vulnerability, Edge case or validation failure, 
+     Regression after deployment, Integration or API communication issue, Data corruption or synchronization issue, UI/UX behavioral defect, 
+     Scalability limitation etc, make sure to briefly explain what that means in practical terms by adding simple examples or possible scenarios.
+
+    For instance, instead of just saying performance degradation, clarify it with examples like:
+
+    the system becomes slow when many users access it at the same time
+    pages take too long to load
+    actions freeze or lag during usage
+
+    The above is just an example. Use examples and scenarios that are relevant with the bug. 
+
+    The goal is to ensure that each bug is easily understandable for non-technical users, while still clearly explaining the issue with realistic situations.
 
     
     
@@ -621,10 +638,11 @@ Before predicting bugs, analyze the feature and think about:
 
 • Main user actions involved  
 • Data fields or inputs used  
-• System components involved (UI, API, database, workflow logic, integrations)  
+• System components involved may include (but are not limited to):
+UI, backend/API, database, workflow logic, integrations, authentication, permissions, notifications, file handling, caching, background jobs, logging, configuration, search/filtering, reporting, and transaction systems. 
 • State changes or background processes triggered by the feature  
 
-Use this understanding to reason about realistic system failures.
+Use this understanding to reason about realistic and possible system failures.
 
 
 STEP 2 — Predict New Bugs
@@ -673,7 +691,26 @@ Also consider realistic edge cases such as:
 • partial failures from external services  
 • invalid workflow states  
 • browser refresh during submission  
-• retry or timeout scenarios  
+• retry or timeout scenarios
+• logical failures 
+• null or unhandled behavior
+
+Breaking Business Logic / Logical Operators Coverage:
+
+Generate bugs that test failures in the core system rules and decision-making logic. This includes incorrect handling of conditions (AND, OR, NOT), validations, calculations, and workflows.
+
+Ensure the bugs cover scenarios where:
+- The system allows invalid actions or blocks valid ones
+- Multiple conditions are not evaluated correctly together
+- Business rules (e.g., eligibility, approvals, limits) are applied incorrectly
+- Calculations or outcomes are wrong when multiple factors are involved
+
+Include simple real-world examples such as:
+- A user is able to perform an action they should not be allowed to
+- A valid action is incorrectly rejected
+- Discounts, totals, or results are calculated incorrectly
+- Workflow steps are skipped or executed out of order
+
 
 
 Required bug categories to cover:
@@ -686,6 +723,9 @@ Required bug categories to cover:
 6. QA and UAT - 3-4 bugs
 
 
+When predicting regression-type bugs, focus on identifying areas that are more likely to break again after changes or updates, and generate bugs based on those high-risk areas.
+
+For other types of bugs—such as functionality, performance, integration, technically complex scenarios, QA, and UAT—analyze the possible ways each category can fail. Then generate bugs that reflect these realistic failure scenarios to ensure broad and comprehensive coverage across different types of issues.
 STEP 4 — Output Format
 
 For each predicted bug return a JSON object with these exact keys:
