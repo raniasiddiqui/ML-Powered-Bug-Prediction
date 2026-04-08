@@ -1659,47 +1659,67 @@ with tab3:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
     
    
-    # if "hybrid_df" not in st.session_state:
-    #     st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
-    # else:
-    #     all_df = st.session_state.hybrid_df
-    #     all_embeddings = st.session_state.hybrid_embeddings
+    if "hybrid_df" not in st.session_state:
+        st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
+    else:
+        all_df = st.session_state.hybrid_df
+        all_embeddings = st.session_state.hybrid_embeddings
        
-    st.markdown("### Describe the Feature Under Test")
-    feature_desc = st.text_area(
-        "Describe the new feature or change you're testing",
-        height=180,
-        placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
-        label_visibility="collapsed",
-        key="feature_desc_input"
-    )
-   
-    top_k = 20
+        st.markdown("### Describe the Feature Under Test")
+        feature_desc = st.text_area(
+            "Describe the new feature or change you're testing",
+            height=180,
+            placeholder="e.g., Dealer uploads CNIC image → gets distorted on mobile, OCR fails in low light...",
+            label_visibility="collapsed",
+            key="feature_desc_input"
+        )
+       
+        top_k = 20
 
         # ====================== BUTTON ======================
-    if st.button("🔍 Predict New Risks with Groq LLaMA (Hybrid)", type="primary"):
-        if not feature_desc.strip():
-            st.warning("Please describe the feature first.")
-        else:
-            with st.spinner("Preparing context and generating prompt..."):
-                prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
-           
-            with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
-                st.code(prompt, language="text")
-           
-            with st.spinner("Asking Groq to predict new risks..."):
-                result = get_grok_predictions(prompt)
-                predictions = result.get("predicted_bugs", [])
-
-            if not predictions:
-                st.warning("No new risks were predicted this time. Try describing the feature in more detail.")
-                with st.expander("Raw Groq response (debug)"):
-                    st.json(result)
+        if st.button("🔍 Predict New Risks with Groq LLaMA (Hybrid)", type="primary"):
+            if not feature_desc.strip():
+                st.warning("Please describe the feature first.")
             else:
-                # Store predictions persistently
-                st.session_state.predictions = predictions
-                
-                # Reset filters to UNCHECKED every time we generate new predictions
+                with st.spinner("Preparing context and generating prompt..."):
+                    prompt = generate_predictive_risk_prompt(feature_desc, all_df, all_embeddings, top_k)
+               
+                with st.expander("📜 Full Prompt Sent to Groq (Hybrid Context)", expanded=False):
+                    st.code(prompt, language="text")
+               
+                with st.spinner("Asking Groq to predict new risks..."):
+                    result = get_grok_predictions(prompt)
+                    predictions = result.get("predicted_bugs", [])
+    
+                if not predictions:
+                    st.warning("No new risks were predicted this time. Try describing the feature in more detail.")
+                    with st.expander("Raw Groq response (debug)"):
+                        st.json(result)
+                else:
+                    # Store predictions persistently
+                    st.session_state.predictions = predictions
+                    
+                    # Reset filters to UNCHECKED every time we generate new predictions
+                    st.session_state.bug_filter = {
+                        "Functionality": False,
+                        "Performance": False,
+                        "Regression": False,
+                        "Integration": False,
+                        "Technically Complex": False,
+                        "QA and UAT": False
+                    }
+    
+        # ====================== FILTER & RESULTS (OUTSIDE button) ======================
+        if "predictions" in st.session_state and st.session_state.predictions:
+            predictions = st.session_state.predictions
+    
+            st.markdown("### 🤖 Predicted New & Hidden Risks")
+    
+            # --- Bug Type Filter UI ---
+            st.markdown("### 🔎 Filter by Bug Type")
+    
+            # Initialize filter only once (defaults to unchecked)
+            if "bug_filter" not in st.session_state:
                 st.session_state.bug_filter = {
                     "Functionality": False,
                     "Performance": False,
@@ -1708,87 +1728,67 @@ with tab3:
                     "Technically Complex": False,
                     "QA and UAT": False
                 }
-
-    # ====================== FILTER & RESULTS (OUTSIDE button) ======================
-    if "predictions" in st.session_state and st.session_state.predictions:
-        predictions = st.session_state.predictions
-
-        st.markdown("### 🤖 Predicted New & Hidden Risks")
-
-        # --- Bug Type Filter UI ---
-        st.markdown("### 🔎 Filter by Bug Type")
-
-        # Initialize filter only once (defaults to unchecked)
-        if "bug_filter" not in st.session_state:
-            st.session_state.bug_filter = {
-                "Functionality": False,
-                "Performance": False,
-                "Regression": False,
-                "Integration": False,
-                "Technically Complex": False,
-                "QA and UAT": False
-            }
-
-        cols = st.columns(3)
-        for i, bug in enumerate(st.session_state.bug_filter.keys()):
-            with cols[i % 3]:
-                st.session_state.bug_filter[bug] = st.checkbox(
-                    bug,
-                    value=st.session_state.bug_filter[bug],
-                    key=f"checkbox_{bug}"
+    
+            cols = st.columns(3)
+            for i, bug in enumerate(st.session_state.bug_filter.keys()):
+                with cols[i % 3]:
+                    st.session_state.bug_filter[bug] = st.checkbox(
+                        bug,
+                        value=st.session_state.bug_filter[bug],
+                        key=f"checkbox_{bug}"
+                    )
+    
+            # Apply filter
+            selected_types = [k for k, v in st.session_state.bug_filter.items() if v]
+    
+            if not selected_types:
+                st.info("👈 **Select one or more bug types above** to see the predicted risks.")
+                filtered_preds = []
+            else:
+                filtered_preds = [
+                    p for p in predictions
+                    if p.get("Bug_Type") in selected_types
+                ]
+    
+            # Display the risk cards
+            for i, item in enumerate(filtered_preds, 1):
+                bug_type = item.get("Bug_Type", "Unknown")
+                title = item.get("Predicted_Bug", "—")
+                root = item.get("Root_Cause_Pattern", "—")
+                why_new = item.get("Why_This_Is_New", "—")
+                risk = item.get("Risk_Level", "—")
+                test = item.get("Recommended_Testing", item.get("Testing_Technique", "—"))
+                steps = item.get("Steps_to_Reproduce", "—")
+    
+                color = {
+                    "High": "#ff5252",
+                    "Medium": "#ffb74d",
+                    "Low": "#81c784"
+                }.get(risk, "#78909c")
+    
+                st.markdown(f"""
+                <div style="border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 6px;">
+                    <h4 style="margin: 0 0 0.6rem 0; color: #424242;">Risk #{i} — {bug_type}</h4>
+                    <div><strong>Predicted Bug:</strong> {title}</div>
+                    <div><strong>Root Cause Pattern:</strong> {root}</div>
+                    <div><strong>Why New:</strong> {why_new}</div>
+                    <div><strong>Risk Level:</strong> <strong style="color:{color}">{risk}</strong></div>
+                    <div><strong>Recommended Testing:</strong> {test}</div>
+                    <div style="margin-top:0.8rem;"><strong>Steps to Reproduce:</strong></div>
+                    <div style="white-space: pre-wrap; font-family: monospace; background:#f0f2f5; padding:0.8rem; border-radius:4px;">{steps}</div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+            # Download button
+            if filtered_preds:
+                df_export = pd.DataFrame(filtered_preds)
+                csv = df_export.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download predictions as CSV",
+                    csv,
+                    "predicted_new_risks.csv",
+                    "text/csv"
                 )
-
-        # Apply filter
-        selected_types = [k for k, v in st.session_state.bug_filter.items() if v]
-
-        if not selected_types:
-            st.info("👈 **Select one or more bug types above** to see the predicted risks.")
-            filtered_preds = []
-        else:
-            filtered_preds = [
-                p for p in predictions
-                if p.get("Bug_Type") in selected_types
-            ]
-
-        # Display the risk cards
-        for i, item in enumerate(filtered_preds, 1):
-            bug_type = item.get("Bug_Type", "Unknown")
-            title = item.get("Predicted_Bug", "—")
-            root = item.get("Root_Cause_Pattern", "—")
-            why_new = item.get("Why_This_Is_New", "—")
-            risk = item.get("Risk_Level", "—")
-            test = item.get("Recommended_Testing", item.get("Testing_Technique", "—"))
-            steps = item.get("Steps_to_Reproduce", "—")
-
-            color = {
-                "High": "#ff5252",
-                "Medium": "#ffb74d",
-                "Low": "#81c784"
-            }.get(risk, "#78909c")
-
-            st.markdown(f"""
-            <div style="border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: #f8f9fa; border-radius: 6px;">
-                <h4 style="margin: 0 0 0.6rem 0; color: #424242;">Risk #{i} — {bug_type}</h4>
-                <div><strong>Predicted Bug:</strong> {title}</div>
-                <div><strong>Root Cause Pattern:</strong> {root}</div>
-                <div><strong>Why New:</strong> {why_new}</div>
-                <div><strong>Risk Level:</strong> <strong style="color:{color}">{risk}</strong></div>
-                <div><strong>Recommended Testing:</strong> {test}</div>
-                <div style="margin-top:0.8rem;"><strong>Steps to Reproduce:</strong></div>
-                <div style="white-space: pre-wrap; font-family: monospace; background:#f0f2f5; padding:0.8rem; border-radius:4px;">{steps}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Download button
-        if filtered_preds:
-            df_export = pd.DataFrame(filtered_preds)
-            csv = df_export.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Download predictions as CSV",
-                csv,
-                "predicted_new_risks.csv",
-                "text/csv"
-            )
 
 
 
