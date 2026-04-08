@@ -1658,11 +1658,11 @@ with tab2:
 with tab3:
     st.markdown("<div class='card'><h2 style='color:#000000; font-weight:bold; margin-top:0'>Predict New Potential Bugs</h2></div>", unsafe_allow_html=True)
    
-    if "hybrid_df" not in st.session_state:
-        st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
-    else:
-        all_df = st.session_state.hybrid_df
-        all_embeddings = st.session_state.hybrid_embeddings
+    # if "hybrid_df" not in st.session_state:
+    #     st.info("👈 Please complete training in Tab 2 to enable hybrid prediction (real + synthetic risks).")
+    # else:
+    #     all_df = st.session_state.hybrid_df
+    #     all_embeddings = st.session_state.hybrid_embeddings
        
         st.markdown("### Describe the Feature Under Test")
         feature_desc = st.text_area(
